@@ -1,0 +1,66 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "2.0.4",
+	"FriendlyName": "Narrative Inventory",
+	"Description": "A networked inventory system that can be used with Narrative Tales, or on its own. ",
+	"Category": "Narrative",
+	"CreatedBy": "Narrative Tools, Inc.",
+	"CreatedByURL": "narrativetools.io",
+	"DocsURL": "https://docs.narrativetools.io/inventory/",
+	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/46d407c1917d4575bfc2a8bb1cb5185d",
+	"SupportURL": "mailto:contact@narrativetools.io",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "NarrativeInventory",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Android",
+				"Linux",
+				"Mac",
+				"IOS"
+			]
+		},
+		{
+			"Name": "NarrativeInventoryEditor",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "PreDefault",
+			"PlatformAllowList": [
+				"Win64",
+				"Android",
+				"Linux",
+				"Mac",
+				"IOS"
+			]
+		},
+		{
+			"Name": "NarrativeEquipment",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Android",
+				"Linux",
+				"Mac",
+				"IOS"
+			]
+		},
+		{
+			"Name": "NarrativeEquipmentEditor",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "PreDefault",
+			"PlatformAllowList": [
+				"Win64",
+				"Android",
+				"Linux",
+				"Mac",
+				"IOS"
+			]
+		}
+	]
+}
