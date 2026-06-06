@@ -5,6 +5,7 @@
 #include "LocomotionComponent.h"
 #include "LocomotionInterface.h"
 #include "StealthSystem.h"
+#include "ActionComponent.h"
 #include "BaseCharacter.generated.h"
 
 UCLASS()
@@ -21,11 +22,30 @@ protected:
 	virtual void BeginPlay() override;
 
 	// components
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	ULocomotionComponent* LocomotionComponent = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UActionComponent* ActionComponent = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UActorComponent* AC_Hitbox = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UActorComponent* AC_HitReaction = nullptr;
+
 
 	// AI variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI Variables")
 	TArray<FName> SocketsToCheckForSight = {"head", "spine_03", "spine_04", "pelvis", "hand_l", "hand_r", "thigh_l", "thigh_r"};
+
+
+	/** Internal routine to force stable, interactive ragdoll corpse states natively */
+	UFUNCTION(BlueprintNativeEvent, Category = "Infiltration Core | Serialization Internal")
+	void InitializeCorpseState(const FStruct_NPCDataAssetPayload& Payload);
+	virtual void InitializeCorpseState_Implementation(const FStruct_NPCDataAssetPayload& Payload);
+
+	/** Internal routine to initialize living AI behavior configurations cleanly */
+	UFUNCTION(BlueprintNativeEvent, Category = "Infiltration Core | Serialization Internal")
+	void InitializeLivingState(const FStruct_NPCDataAssetPayload& Payload);
+	virtual void InitializeLivingState_Implementation(const FStruct_NPCDataAssetPayload& Payload);
 
 public:	
 	// Called every frame
@@ -42,9 +62,14 @@ public:
 	FString NPCIdentityName = TEXT("Unnamed Guard");
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infiltration Core | Guard Settings")
 	TMap<FName, float> OutfitSuspicionMultipliers;
-	UFUNCTION(BlueprintNativeEvent, Category = "AI | Lifecycle")
+	/** Overridable event driven straight out of Easy Game UI's Load game variables delegate pass */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Infiltration Core | Serialization")
 	void PostLoadInitialization(const FStruct_NPCDataAssetPayload& LoadedPayload);
-	void InitializeCorpseState(const FStruct_NPCDataAssetPayload& Payload);
+	virtual void PostLoadInitialization_Implementation(const FStruct_NPCDataAssetPayload& LoadedPayload);
+
+	/** Prepares a fresh, living character layout structure to write directly to Easy Game UI's Save script macro */
+	UFUNCTION(BlueprintPure, Category = "Infiltration Core | Serialization")
+	FStruct_NPCDataAssetPayload PackageSavePayload() const;
 
 
 	// locomotion overrides

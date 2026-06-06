@@ -55,6 +55,9 @@ struct FStruct_NPCDataAssetPayload
 	UPROPERTY(BlueprintReadWrite, Category = "Save Data")
 	FString NPCIdentityName = TEXT("Unnamed Guard");
 
+	UPROPERTY(BlueprintReadWrite, Category = "Save Data")
+	FStruct_InfiltrationProfile InfiltrationProfile;
+
 	// This acts as a perfect drop-in placeholder for Narrative Inventory IDs later!
 	UPROPERTY(BlueprintReadWrite, Category = "Save Data")
 	TArray<FString> EquippedVisualTags;
