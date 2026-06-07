@@ -9,10 +9,10 @@
  * Optimization zones based on distance from the player camera.
  * Applied per-NPC every EvaluationInterval seconds.
  *
- * Zone 0 — Active   (0–1200 units)   : Full rate everything
- * Zone 1 — Mid      (1200–3000 units): Throttled actor + movement, reduced anim update rate
- * Zone 2 — Distant  (3000+ units)    : Heavy throttle, anim paused, movement ticked minimally
- * Zone 3 — Inactive                  : Dead or explicitly disabled, tick off entirely
+ * Active   (0–MidZoneDistance)          : Full rate everything
+ * Mid      (MidZoneDistance–DistantZone) : Throttled actor + movement, reduced anim update rate
+ * Distant  (DistantZoneDistance+)        : Heavy throttle, anim paused, movement ticked minimally
+ * Inactive                               : Dead or explicitly disabled, tick off entirely
  */
 UENUM(BlueprintType)
 enum class EOptimizationZone : uint8
@@ -42,16 +42,16 @@ public:
 	// ??? Tuning ??????????????????????????????????????????????????????????????
 
 	/** How often (seconds) this component re-evaluates the NPC's distance zone.
-	 *  Keep this low — 0.5s is imperceptible and saves meaningful evaluations per second. */
-	UPROPERTY(EditDefaultsOnly, Category = "Optimization | Timing")
+	 * Keep this low — 0.5s is imperceptible and saves meaningful evaluations per second. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization | Timing", meta = (ClampMin = "0.05"))
 	float EvaluationInterval = 0.5f;
 
 	/** Distance (units) at which the NPC transitions from Active to Mid zone. */
-	UPROPERTY(EditDefaultsOnly, Category = "Optimization | Distances")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization | Distances", meta = (ClampMin = "0.0"))
 	float MidZoneDistance = 1200.f;
 
 	/** Distance (units) at which the NPC transitions from Mid to Distant zone. */
-	UPROPERTY(EditDefaultsOnly, Category = "Optimization | Distances")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization | Distances", meta = (ClampMin = "0.0"))
 	float DistantZoneDistance = 3000.f;
 
 	// ??? Zone Tick Intervals ?????????????????????????????????????????????????
@@ -83,8 +83,8 @@ public:
 	// ??? Animation LOD ???????????????????????????????????????????????????????
 
 	/** Animation update rate divisor in Mid zone.
-	 *  1 = every frame, 2 = every other frame, etc.
-	 *  URO (Update Rate Optimizations) uses this internally. */
+	 * 1 = every frame, 2 = every other frame, etc.
+	 * URO (Update Rate Optimizations) uses this internally. */
 	UPROPERTY(EditDefaultsOnly, Category = "Optimization | Animation")
 	int32 MidZoneAnimUpdateRateDivisor = 2;
 
@@ -93,7 +93,7 @@ public:
 	int32 DistantZoneAnimUpdateRateDivisor = 4;
 
 	/** Whether to enable mesh visibility-based animation pause.
-	 *  When true, animation evaluation stops entirely if the mesh is not visible to any camera. */
+	 * When true, animation evaluation stops entirely if the mesh is not visible to any camera. */
 	UPROPERTY(EditDefaultsOnly, Category = "Optimization | Animation")
 	bool bPauseAnimWhenNotRendered = true;
 
@@ -103,7 +103,8 @@ public:
 
 	// ??? State ???????????????????????????????????????????????????????????????
 
-	UPROPERTY(BlueprintReadOnly, Category = "Optimization | State")
+	/** Explicitly Transient to protect runtime calculations from being written to saved archetypes */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Optimization | State")
 	EOptimizationZone CurrentZone = EOptimizationZone::Active;
 
 	/** Broadcast whenever the zone changes. Useful for Blueprint cosmetic toggles. */
@@ -113,9 +114,14 @@ public:
 	// ??? Control ?????????????????????????????????????????????????????????????
 
 	/** Call this when the NPC dies or enters a permanently inactive state.
-	 *  Applies Inactive zone settings and stops the evaluation timer entirely. */
+	 * Applies Inactive zone settings and stops the evaluation timer entirely. */
 	UFUNCTION(BlueprintCallable, Category = "Optimization")
 	void SetInactive();
+
+	/** Instantly forces the NPC back to full active priority status (Zone 0)
+	 * and safely flushes/resets the evaluation loop clock tracker. */
+	UFUNCTION(BlueprintCallable, Category = "Optimization")
+	void ForceWakeup();
 
 	/** Force an immediate zone re-evaluation outside the normal timer interval. */
 	UFUNCTION(BlueprintCallable, Category = "Optimization")
@@ -138,6 +144,7 @@ private:
 
 	FTimerHandle EvaluationTimerHandle;
 
+	UPROPERTY(Transient)
 	bool bIsInactive = false;
 
 	// Remembers the original tick interval so we can restore it on zone upgrade
@@ -154,6 +161,6 @@ private:
 	void ApplyInactiveZone();
 
 	/** Returns squared distance to the nearest local player camera.
-	 *  Uses camera location, not pawn location, for occlusion-awareness. */
+	 * Uses camera location, not pawn location, for occlusion-awareness. */
 	float GetDistanceSquaredToCamera() const;
 };

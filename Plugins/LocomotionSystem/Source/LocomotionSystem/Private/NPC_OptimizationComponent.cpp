@@ -13,6 +13,11 @@ UNPC_OptimizationComponent::UNPC_OptimizationComponent()
 	// This component runs only its timer — no per-frame tick needed.
 	// All NPC throttling is driven by the EvaluationInterval timer.
 	PrimaryComponentTick.bCanEverTick = false;
+
+	// Configurable default values matching our updated header thresholds
+	EvaluationInterval = 0.5f;
+	MidZoneDistance = 1200.f;
+	DistantZoneDistance = 3000.f;
 }
 
 void UNPC_OptimizationComponent::BeginPlay()
@@ -38,7 +43,7 @@ void UNPC_OptimizationComponent::BeginPlay()
 	{
 		// UE5 built-in: stop animating when the mesh hasn't been rendered for N seconds.
 		// This handles occlusion and off-screen NPCs at zero cost.
-		MeshComp->bPauseAnims = false; // we control this ourselves via URO
+		MeshComp->bPauseAnims = false; // we control this ourselves via URO or Inactive states
 		MeshComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 	}
 
@@ -71,7 +76,7 @@ void UNPC_OptimizationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public API
+// Public API / Control
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UNPC_OptimizationComponent::SetInactive()
@@ -88,6 +93,28 @@ void UNPC_OptimizationComponent::SetInactive()
 	ApplyZoneSettings(EOptimizationZone::Inactive);
 }
 
+void UNPC_OptimizationComponent::ForceWakeup()
+{
+	// A dead/permanently inactive NPC mesh shouldn't be forced awake by game systems
+	if (bIsInactive || !GetWorld()) return;
+
+	// Clear and reset the running clock cycle so an imminent evaluation loop pass 
+	// doesn't instantly drop our actor back into a sleeping frame tier
+	GetWorld()->GetTimerManager().ClearTimer(EvaluationTimerHandle);
+
+	// Force-restore maximum frame and logic processing rates immediately
+	ApplyZoneSettings(EOptimizationZone::Active);
+
+	// Re-initialize the running evaluation clock loop interval safely
+	GetWorld()->GetTimerManager().SetTimer(
+		EvaluationTimerHandle,
+		this,
+		&UNPC_OptimizationComponent::EvaluateZone,
+		EvaluationInterval,
+		true
+	);
+}
+
 void UNPC_OptimizationComponent::ForceEvaluateNow()
 {
 	if (!bIsInactive)
@@ -102,6 +129,8 @@ void UNPC_OptimizationComponent::ForceEvaluateNow()
 
 void UNPC_OptimizationComponent::EvaluateZone()
 {
+	if (bIsInactive) return;
+
 	const float DistSq = GetDistanceSquaredToCamera();
 	const EOptimizationZone NewZone = CalculateZoneForDistance(DistSq);
 
@@ -205,7 +234,6 @@ void UNPC_OptimizationComponent::ApplyMidZone()
 
 	// ─── CharacterMovement: throttle to ~20Hz ────────────────────────────────
 	// Movement still runs — NPC is patrolling and needs physics/nav integration.
-	// Just not at 60+ Hz.
 	if (MovementComp)
 	{
 		MovementComp->PrimaryComponentTick.TickInterval = MidZoneMovementTickInterval;
@@ -218,12 +246,15 @@ void UNPC_OptimizationComponent::ApplyMidZone()
 	}
 
 	// ─── Animation: URO divisor — animate every Nth frame ───────────────────
-	// URO interpolates between poses, so the NPC doesn't visually snap even at
-	// lower update rates. Perfectly imperceptible at mid range.
 	if (MeshComp)
 	{
 		MeshComp->bEnableUpdateRateOptimizations = true;
-		MeshComp->AnimUpdateRateParams->MaxEvalRateForInterpolation = MidZoneAnimUpdateRateDivisor;
+
+		// Defensive validation check to prevent null-ptr exceptions if URO parameters aren't initialized yet
+		if (MeshComp->AnimUpdateRateParams)
+		{
+			MeshComp->AnimUpdateRateParams->MaxEvalRateForInterpolation = MidZoneAnimUpdateRateDivisor;
+		}
 
 		if (bPauseAnimWhenNotRendered)
 		{
@@ -241,8 +272,6 @@ void UNPC_OptimizationComponent::ApplyDistantZone()
 	Owner->SetActorTickInterval(DistantZoneActorTickInterval);
 
 	// ─── CharacterMovement: heavy throttle ───────────────────────────────────
-	// At this distance CharacterMovement still needs to run to keep nav mesh
-	// position correct, but at much lower frequency.
 	if (MovementComp)
 	{
 		MovementComp->PrimaryComponentTick.TickInterval = DistantZoneMovementTickInterval;
@@ -258,7 +287,11 @@ void UNPC_OptimizationComponent::ApplyDistantZone()
 	if (MeshComp)
 	{
 		MeshComp->bEnableUpdateRateOptimizations = true;
-		MeshComp->AnimUpdateRateParams->MaxEvalRateForInterpolation = DistantZoneAnimUpdateRateDivisor;
+
+		if (MeshComp->AnimUpdateRateParams)
+		{
+			MeshComp->AnimUpdateRateParams->MaxEvalRateForInterpolation = DistantZoneAnimUpdateRateDivisor;
+		}
 
 		// At this distance, full visibility-based pause is appropriate.
 		// If the NPC isn't on screen, don't animate at all.
@@ -276,13 +309,9 @@ void UNPC_OptimizationComponent::ApplyInactiveZone()
 	if (!Owner) return;
 
 	// ─── Actor tick: off entirely ─────────────────────────────────────────────
-	// Dead NPCs are ragdolls. Physics handles them — Unreal's physics engine
-	// does not use actor tick. Nothing in ABaseCharacter::Tick needs to run
-	// on a corpse.
 	Owner->SetActorTickEnabled(false);
 
 	// ─── CharacterMovement: off ───────────────────────────────────────────────
-	// CMC is irrelevant on a ragdoll. The skeletal mesh physics takes over.
 	if (MovementComp)
 	{
 		MovementComp->SetComponentTickEnabled(false);
@@ -296,8 +325,6 @@ void UNPC_OptimizationComponent::ApplyInactiveZone()
 	}
 
 	// ─── Animation: let physics drive the ragdoll, stop anim evaluation ───────
-	// SetAllBodiesSimulatePhysics is called by InitializeCorpseState in C++.
-	// Here we just make sure the anim system doesn't fight physics.
 	if (MeshComp)
 	{
 		MeshComp->bEnableUpdateRateOptimizations = false;
