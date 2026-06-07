@@ -52,7 +52,6 @@ public class LocomotionSystem : ModuleRules
                 "PoseSearch",
                 "MotionTrajectory",
                 "AnimGraphRuntime",
-				"AIModule",
             }
 			);
 		

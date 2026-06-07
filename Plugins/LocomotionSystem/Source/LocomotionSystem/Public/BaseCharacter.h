@@ -121,8 +121,8 @@ public:
 	/** Prepares a fresh, living character layout structure to write directly to Easy Game UI's Save script macro */
 	UFUNCTION(BlueprintPure, Category = "Infiltration Core | Serialization")
 	FStruct_NPCDataAssetPayload PackageSavePayload() const;
-
-
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Combat Overrides")
+	bool IsTheCharacterDead() const;
 
 
 

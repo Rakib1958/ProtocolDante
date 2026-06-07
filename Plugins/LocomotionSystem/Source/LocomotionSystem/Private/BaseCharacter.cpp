@@ -17,6 +17,8 @@ ABaseCharacter::ABaseCharacter()
     GetCharacterMovement()->bOrientRotationToMovement = false;
 	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.f, -1.f, 0.f);
+    GetCharacterMovement()->bUseSeparateBrakingFriction = true;
+    GetCharacterMovement()->SetTickGroup(ETickingGroup::TG_PostPhysics);
 	LocomotionComponent = CreateDefaultSubobject<ULocomotionComponent>(TEXT("LocomotionComponent"));
     ActionComponent = CreateDefaultSubobject<UActionComponent>(TEXT("ActionComponent"));
     AC_Hitbox = CreateDefaultSubobject<UActorComponent>(TEXT("AC_Hitbox"));
@@ -194,7 +196,8 @@ FStruct_NPCDataAssetPayload ABaseCharacter::PackageSavePayload() const
     FStruct_NPCDataAssetPayload Payload;
 
     // Determine death status safely via the locomotion component state or controller tracking
-    Payload.bIsDead = (GetCharacterMovement()->MovementMode == EMovementMode::MOVE_None && ActionComponent == nullptr);
+    //Payload.bIsDead = (GetCharacterMovement()->MovementMode == EMovementMode::MOVE_None && ActionComponent == nullptr);
+    Payload.bIsDead = IsTheCharacterDead();
 
     Payload.SavedLocation = GetActorLocation();
     Payload.SavedRotation = GetActorRotation();
@@ -205,6 +208,10 @@ FStruct_NPCDataAssetPayload ABaseCharacter::PackageSavePayload() const
     // Payload.EquippedVisualTags = NarrativeEquipmentComponent->GetEquippedItemTags();
 
     return Payload;
+}
+bool ABaseCharacter::IsTheCharacterDead_Implementation() const
+{
+    return false;
 }
 void ABaseCharacter::SetOptimizationInactive()
 {
