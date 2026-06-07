@@ -143,7 +143,7 @@ public:
 	FStruct_CharacterInputState GetCurrentInputState() const;
 	virtual void CallUpdateMovement_Implementation() override;
 	virtual void CallUpdateRotation_Implementation() override;
-
+	virtual void Landed(const FHitResult& Hit) override;
 
 
 

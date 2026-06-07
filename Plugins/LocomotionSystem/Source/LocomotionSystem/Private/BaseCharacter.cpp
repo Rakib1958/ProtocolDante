@@ -37,6 +37,12 @@ void ABaseCharacter::CallUpdateRotation_Implementation()
     UpdateRotation();
 }
 
+void ABaseCharacter::Landed(const FHitResult& Hit)
+{
+    Super::Landed(Hit);
+    LocomotionComponent->OnLandedEvent();
+}
+
 // Called when the game starts or when spawned
 void ABaseCharacter::BeginPlay()
 {

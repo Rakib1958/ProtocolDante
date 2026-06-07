@@ -46,6 +46,11 @@ private:
 
 
 public:
+
+
+	void OnLandedEvent();
+
+
 	UPROPERTY(EditAnywhere, Category = "Curves")
 	UCurveFloat* StrafeSpeedMapCurve;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "States")
@@ -58,7 +63,7 @@ public:
 	Enum_MovementState MovementState = Enum_MovementState::Idle;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
 	Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
-	UPROPERTY(EditAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
 	bool JustLanded = false;
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector CrouchSpeed = FVector(225.f, 200.f, 180.f);
@@ -123,9 +128,8 @@ public:
 	void StopRagdoll();
 
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Ragdoll")
-	bool IsAiming() const;
-
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Movement Analysis")
+	bool IsSprinting() const;
 private:
 	void SetReferences();
 	bool HasMovementInputVector();

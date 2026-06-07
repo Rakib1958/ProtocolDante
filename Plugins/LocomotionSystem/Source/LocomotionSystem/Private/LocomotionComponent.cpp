@@ -69,6 +69,10 @@ void ULocomotionComponent::SetReferences()
 		IsValidCharacter = true;
 	}
 }
+void ULocomotionComponent::OnLandedEvent()
+{
+	LandVelocity = CharacterMovement->Velocity;
+}
 bool ULocomotionComponent::HasMovementInputVector()
 {
 	return IsValidCharacter ? UKismetMathLibrary::NotEqual_VectorVector(Character->GetPendingMovementInputVector(), FVector::ZeroVector, 0.f) : false;
@@ -138,6 +142,10 @@ float ULocomotionComponent::CalculateGroundFriction()
 }
 float ULocomotionComponent::CalculateMaxSpeed()
 {
+	if (!IsValid(StrafeSpeedMapCurve))
+	{
+		return 0.f;
+	}
 	float StrafeSpeedMap = CharacterMovement->bUseControllerDesiredRotation ? StrafeSpeedMapCurve->GetFloatValue(abs(UKismetAnimationLibrary::CalculateDirection(CharacterMovement->Velocity, Character->GetActorRotation()))) : 0.f;
 	FVector DesiredSpeed = FVector::ZeroVector;
 	switch (Gait)
@@ -171,6 +179,10 @@ float ULocomotionComponent::CalculateMaxSpeed()
 }
 float ULocomotionComponent::CalculateMaxSpeedCrouched()
 {
+	if (!IsValid(StrafeSpeedMapCurve))
+	{
+		return 0.f;
+	}
 	float StrafeSpeedMap = CharacterMovement->bOrientRotationToMovement ? 0.f : StrafeSpeedMapCurve->GetFloatValue(abs(UKismetAnimationLibrary::CalculateDirection(CharacterMovement->Velocity, Character->GetActorRotation())));
 	return StrafeSpeedMap < 1.f ? UKismetMathLibrary::MapRangeClamped(StrafeSpeedMap, 0.f, 1.f, CrouchSpeed.X, CrouchSpeed.Y) : UKismetMathLibrary::MapRangeClamped(StrafeSpeedMap, 1.f, 2.f, CrouchSpeed.Y, CrouchSpeed.Z);
 }
@@ -316,7 +328,6 @@ void ULocomotionComponent::StopRagdoll()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Mesh->SetAllBodiesSimulatePhysics(false);
 }
-bool ULocomotionComponent::IsAiming() const
-{
-	return CharacterInputState.WantsToAim;
+bool ULocomotionComponent::IsSprinting() const {
+	return CharacterInputState.WantsToSprint && CharacterMovement->Velocity.SizeSquared2D() > RunSpeed.SizeSquared2D();
 }
