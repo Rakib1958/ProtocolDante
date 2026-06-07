@@ -212,25 +212,24 @@ void UNPC_OptimizationComponent::ApplyMidZone()
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	Owner->SetActorTickInterval(MidZoneActorTickInterval);
+	// Reset intervals to baseline standard performance frames
+	Owner->SetActorTickInterval(OriginalActorTickInterval);
 
 	if (MovementComp)
 	{
-		MovementComp->PrimaryComponentTick.TickInterval = MidZoneMovementTickInterval;
+		MovementComp->PrimaryComponentTick.TickInterval = OriginalMovementTickInterval;
 	}
 
 	if (LocomotionComp)
 	{
-		LocomotionComp->PrimaryComponentTick.TickInterval = MidZoneLocomotionTickInterval;
+		LocomotionComp->PrimaryComponentTick.TickInterval = OriginalLocomotionTickInterval;
 	}
 
 	if (MeshComp)
 	{
-		MeshComp->bEnableUpdateRateOptimizations = true;
-		if (MeshComp->AnimUpdateRateParams)
-		{
-			MeshComp->AnimUpdateRateParams->MaxEvalRateForInterpolation = MidZoneAnimUpdateRateDivisor;
-		}
+		MeshComp->bEnableUpdateRateOptimizations = false;
+		// If hidden behind a wall, optimize out bone calculations, but maintain stable pose tracking
+		MeshComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 	}
 }
 
@@ -239,29 +238,29 @@ void UNPC_OptimizationComponent::ApplyDistantZone()
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	Owner->SetActorTickInterval(DistantZoneActorTickInterval);
+	// CRITICAL PHYSICS FIX: Never throttle the Actor or Movement ticks while an AI is moving.
+	// This ensures pathfinding acceptance radius checks sample with 100% precision.
+	Owner->SetActorTickInterval(OriginalActorTickInterval);
 
 	if (MovementComp)
 	{
-		MovementComp->PrimaryComponentTick.TickInterval = DistantZoneMovementTickInterval;
+		MovementComp->PrimaryComponentTick.TickInterval = OriginalMovementTickInterval;
 	}
 
+	// We can safely throttle background custom utility AI lookups (Locomotion parameters)
 	if (LocomotionComp)
 	{
-		LocomotionComp->PrimaryComponentTick.TickInterval = DistantZoneLocomotionTickInterval;
+		LocomotionComp->PrimaryComponentTick.TickInterval = OriginalLocomotionTickInterval;
 	}
 
 	if (MeshComp)
 	{
-		MeshComp->bEnableUpdateRateOptimizations = true;
-		if (MeshComp->AnimUpdateRateParams)
-		{
-			MeshComp->AnimUpdateRateParams->MaxEvalRateForInterpolation = DistantZoneAnimUpdateRateDivisor;
-		}
-		// Root mesh stays AlwaysTickPoseAndRefreshBones (set in BeginPlay).
-		// Copy Pose From Mesh in follower anim graphs requires the root to have
-		// evaluated. When dressup is added, follower VisibilityBasedAnimTickOption
-		// gets its own handling here via NotifyFollowerMeshesReady.
+		// CRITICAL ANIMATION FIX: Turn OFF URO to prevent Motion Matching database snapping.
+		MeshComp->bEnableUpdateRateOptimizations = false;
+
+		// If the guard is far away and NOT actively rendered on the player's screen,
+		// bypass the entire Motion Matching graph loop completely to save precious CPU cycles.
+		MeshComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickMontagesWhenNotRendered;
 	}
 }
 
