@@ -79,7 +79,22 @@ bool ULocomotionComponent::CanSprint()
 	{
 		return false;
 	}
-	return CharacterInputState.WantsToSprint && CharacterMovement->bOrientRotationToMovement || UKismetMathLibrary::NormalizedDeltaRotator(Character->GetActorRotation(), UKismetMathLibrary::MakeRotFromX(Character->IsLocallyControlled() ? Character->GetPendingMovementInputVector() : CharacterMovement->GetCurrentAcceleration())).Yaw < 45.f;
+	return CharacterInputState.WantsToSprint 
+		&& 
+		(CharacterMovement->bOrientRotationToMovement 
+			|| 
+			(
+				(UKismetMathLibrary::NormalizedDeltaRotator(
+					Character->GetActorRotation(), 
+					UKismetMathLibrary::MakeRotFromX(
+						Character->IsLocallyControlled()
+						? 
+						Character->GetPendingMovementInputVector()
+						: CharacterMovement->GetCurrentAcceleration())
+				).Yaw)
+				< 45.f
+				)
+			);
 }
 float ULocomotionComponent::CalculateMaxAcceleration()
 {
@@ -201,6 +216,38 @@ void ULocomotionComponent::SetActorLocationDuringRagdoll()
 		Character->SetActorLocationAndRotation(TargetLocation, TargetRotation);
 	}
 }
+void ULocomotionComponent::WantsToSprint(bool IsHeld)
+{
+	CharacterInputState.WantsToSprint = IsHeld;
+}
+void ULocomotionComponent::WantsToWalk(bool IsHeld)
+{
+	if (!CharacterInputState.WantsToSprint)
+	{
+		CharacterInputState.WantsToWalk = IsHeld;
+	}
+}
+void ULocomotionComponent::WantsToAim(bool IsHeld)
+{
+	CharacterInputState.WantsToAim = IsHeld;
+}
+void ULocomotionComponent::WantsToStrafe()
+{
+	CharacterInputState.WantsToStrafe = !CharacterInputState.WantsToStrafe;
+}
+void ULocomotionComponent::WantsToCrouch()
+{
+	if (!CharacterMovement->IsFalling())
+	{
+		if (Character->IsCrouched())
+		{
+			Character->UnCrouch();
+		}
+		else {
+			Character->Crouch();
+		}
+	}
+}
 void ULocomotionComponent::SetStance(Enum_Stance NewStance)
 {
 	if (Stance != NewStance)
@@ -268,4 +315,8 @@ void ULocomotionComponent::StopRagdoll()
 	Mesh->SetCollisionObjectType(ECollisionChannel::ECC_Pawn);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Mesh->SetAllBodiesSimulatePhysics(false);
+}
+bool ULocomotionComponent::IsAiming() const
+{
+	return CharacterInputState.WantsToAim;
 }

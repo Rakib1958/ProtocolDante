@@ -31,15 +31,15 @@ public:
 
 private:
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	ACharacter* Character;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	UCharacterMovementComponent* CharacterMovement;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	UCapsuleComponent* CapsuleComponent;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* Mesh;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	UAnimInstance* MainAnimInstance;
 
 	bool IsValidCharacter = false;
@@ -48,15 +48,15 @@ private:
 public:
 	UPROPERTY(EditAnywhere, Category = "Curves")
 	UCurveFloat* StrafeSpeedMapCurve;
-	UPROPERTY(EditAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "States")
 	Enum_Stance Stance = Enum_Stance::Stand;
-	UPROPERTY(EditAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "States")
 	Enum_Gait Gait = Enum_Gait::Run;
-	UPROPERTY(EditAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "States")
 	Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
 	UPROPERTY(EditAnywhere, Category = "States")
 	Enum_MovementState MovementState = Enum_MovementState::Idle;
-	UPROPERTY(EditAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
 	Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
 	UPROPERTY(EditAnywhere, Category = "States")
 	bool JustLanded = false;
@@ -74,7 +74,7 @@ public:
 	FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
-	UPROPERTY(EditAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
 	FStruct_CharacterInputState CharacterInputState;
 	UPROPERTY(EditAnywhere, Category = "Friction")
 	float SprintGroundFriction = 3.f;
@@ -123,6 +123,9 @@ public:
 	void StopRagdoll();
 
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Ragdoll")
+	bool IsAiming() const;
+
 private:
 	void SetReferences();
 	bool HasMovementInputVector();
@@ -138,4 +141,14 @@ private:
 	void UpdateRagdoll();
 	void SetActorLocationDuringRagdoll();
 
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void WantsToSprint(bool IsHeld);
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void WantsToWalk(bool IsHeld);
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void WantsToAim(bool IsHeld);
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void WantsToStrafe();
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void WantsToCrouch();
 };

@@ -14,11 +14,12 @@ ABaseCharacter::ABaseCharacter()
 	GetCharacterMovement()->NavAgentProps.bCanSwim = true;
     GetCharacterMovement()->bCanWalkOffLedges = true;
 	GetCharacterMovement()->bCanWalkOffLedgesWhenCrouching = true;
-    GetCharacterMovement()->bOrientRotationToMovement = false;
-	GetCharacterMovement()->bUseControllerDesiredRotation = true;
+    GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
 	GetCharacterMovement()->RotationRate = FRotator(0.f, -1.f, 0.f);
     GetCharacterMovement()->bUseSeparateBrakingFriction = true;
     GetCharacterMovement()->SetTickGroup(ETickingGroup::TG_PostPhysics);
+    bUseControllerRotationYaw = false;
 	LocomotionComponent = CreateDefaultSubobject<ULocomotionComponent>(TEXT("LocomotionComponent"));
     ActionComponent = CreateDefaultSubobject<UActionComponent>(TEXT("ActionComponent"));
     AC_Hitbox = CreateDefaultSubobject<UActorComponent>(TEXT("AC_Hitbox"));
@@ -67,6 +68,7 @@ void ABaseCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightA
 }
 void ABaseCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
 {
+    Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
 	switch (GetCharacterMovement()->MovementMode)
 	{
 	case EMovementMode::MOVE_Walking:
