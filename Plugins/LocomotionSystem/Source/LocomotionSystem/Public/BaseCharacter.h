@@ -6,6 +6,7 @@
 #include "LocomotionInterface.h"
 #include "StealthSystem.h"
 #include "ActionComponent.h"
+#include "NPC_OptimizationComponent.h"
 #include "BaseCharacter.generated.h"
 
 UCLASS()
@@ -13,13 +14,24 @@ class LOCOMOTIONSYSTEM_API ABaseCharacter : public ACharacter, public ILocomotio
 {
 	GENERATED_BODY()
 
+
+
+
+// constructor
 public:
 	// Sets default values for this character's properties
 	ABaseCharacter();
 
+
+
+
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+
+
 
 	// components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -30,11 +42,26 @@ protected:
 	UActorComponent* AC_Hitbox = nullptr;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UActorComponent* AC_HitReaction = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UNPC_OptimizationComponent* OptimizationComponent = nullptr; 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UActorComponent* AC_ParryAttack = nullptr;
+
+
+
+
+
 
 
 	// AI variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI Variables")
 	TArray<FName> SocketsToCheckForSight = {"head", "spine_03", "spine_04", "pelvis", "hand_l", "hand_r", "thigh_l", "thigh_r"};
+
+
+
+
+
+
 
 
 	/** Internal routine to force stable, interactive ragdoll corpse states natively */
@@ -47,12 +74,30 @@ protected:
 	void InitializeLivingState(const FStruct_NPCDataAssetPayload& Payload);
 	virtual void InitializeLivingState_Implementation(const FStruct_NPCDataAssetPayload& Payload);
 
+
+
+
+
+
+
+
 public:	
+
+
+
+
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+
+
+
+
+
+
+
 
 
 	// stealth system
@@ -62,14 +107,28 @@ public:
 	FString NPCIdentityName = TEXT("Unnamed Guard");
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infiltration Core | Guard Settings")
 	TMap<FName, float> OutfitSuspicionMultipliers;
+
+
+
+
 	/** Overridable event driven straight out of Easy Game UI's Load game variables delegate pass */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Infiltration Core | Serialization")
 	void PostLoadInitialization(const FStruct_NPCDataAssetPayload& LoadedPayload);
 	virtual void PostLoadInitialization_Implementation(const FStruct_NPCDataAssetPayload& LoadedPayload);
 
+
+
 	/** Prepares a fresh, living character layout structure to write directly to Easy Game UI's Save script macro */
 	UFUNCTION(BlueprintPure, Category = "Infiltration Core | Serialization")
 	FStruct_NPCDataAssetPayload PackageSavePayload() const;
+
+
+
+
+
+
+
+
 
 
 	// locomotion overrides
@@ -84,6 +143,19 @@ public:
 	FStruct_CharacterInputState GetCurrentInputState() const;
 	virtual void CallUpdateMovement_Implementation() override;
 	virtual void CallUpdateRotation_Implementation() override;
+
+
+
+
+
+
+	/** Called by death logic to stop all NPC ticking immediately.
+ *  Routes to OptimizationComponent::SetInactive. Exposed for Blueprint death handlers. */
+	UFUNCTION(BlueprintCallable, Category = "Optimization")
+	void SetOptimizationInactive();
+
+
+
 
 
 

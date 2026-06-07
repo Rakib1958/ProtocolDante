@@ -21,6 +21,8 @@ ABaseCharacter::ABaseCharacter()
     ActionComponent = CreateDefaultSubobject<UActionComponent>(TEXT("ActionComponent"));
     AC_Hitbox = CreateDefaultSubobject<UActorComponent>(TEXT("AC_Hitbox"));
     AC_HitReaction = CreateDefaultSubobject<UActorComponent>(TEXT("AC_HitReaction"));
+    AC_ParryAttack = CreateDefaultSubobject<UActorComponent>(TEXT("AC_ParryAttack"));
+    OptimizationComponent = CreateDefaultSubobject<UNPC_OptimizationComponent>(TEXT("OptimizationComponent"));
 }
 
 void ABaseCharacter::CallUpdateMovement_Implementation()
@@ -204,8 +206,19 @@ FStruct_NPCDataAssetPayload ABaseCharacter::PackageSavePayload() const
 
     return Payload;
 }
+void ABaseCharacter::SetOptimizationInactive()
+{
+    if (OptimizationComponent)
+    {
+        OptimizationComponent->SetInactive();
+    }
+}
 void ABaseCharacter::InitializeCorpseState_Implementation(const FStruct_NPCDataAssetPayload& Payload)
 {
+    // 0. Kill all NPC ticking immediately — corpses waste zero cycles
+    SetOptimizationInactive();
+
+
     // 1. Permanently sever AI Controller connection to prevent phantom possession ticks
     if (AAIController* AIC = Cast<AAIController>(GetController()))
     {
@@ -214,18 +227,8 @@ void ABaseCharacter::InitializeCorpseState_Implementation(const FStruct_NPCDataA
         AIC->Destroy();
     }
 
-    // 2. Strip movement constraints and disable traditional capsule blocks
-    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-    // 3. Configure the mesh for direct physics simulation
-    GetMesh()->SetAllBodiesSimulatePhysics(false); // Reset tracking anchors
-    GetMesh()->SetCollisionObjectType(ECollisionChannel::ECC_PhysicsBody);
-    GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-
-    // 4. Snap and simulate physics directly from the Pelvis bone structure to avoid terrain glitches
-    GetMesh()->SetAllBodiesBelowSimulatePhysics(FName("pelvis"), true, true);
-
-    // Blueprint hooks catch this block to safely load underwear meshes or cosmetic modifications!
+    // 2. start ragdoll
+    LocomotionComponent->StartRagdoll();
 }
 void ABaseCharacter::InitializeLivingState_Implementation(const FStruct_NPCDataAssetPayload& Payload)
 {
