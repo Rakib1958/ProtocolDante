@@ -30,70 +30,71 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
-	UPROPERTY(VisibleAnywhere, Category = "References")
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	ACharacter* Character;
-	UPROPERTY(VisibleAnywhere, Category = "References")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	UCharacterMovementComponent* CharacterMovement;
-	UPROPERTY(VisibleAnywhere, Category = "References")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	UCapsuleComponent* CapsuleComponent;
-	UPROPERTY(VisibleAnywhere, Category = "References")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* Mesh;
-	UPROPERTY(VisibleAnywhere, Category = "References")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	UAnimInstance* MainAnimInstance;
-	UPROPERTY(VisibleAnywhere, Category = "Curves")
-	UCurveFloat* StrafeSpeedMapCurve;
-	UPROPERTY(VisibleAnywhere, Category = "States")
-	Enum_Stance Stance = Enum_Stance::Stand;
-	UPROPERTY(VisibleAnywhere, Category = "States")
-	Enum_Gait Gait = Enum_Gait::Run;
-	UPROPERTY(VisibleAnywhere, Category = "States")
-	Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
-	UPROPERTY(VisibleAnywhere, Category = "States")
-	Enum_MovementState MovementState = Enum_MovementState::Idle;
-	UPROPERTY(VisibleAnywhere, Category = "States")
-	Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
-	UPROPERTY(VisibleAnywhere, Category = "States")
-	bool JustLanded = false;
 
 	bool IsValidCharacter = false;
 
 
 public:
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Curves")
+	UCurveFloat* StrafeSpeedMapCurve;
+	UPROPERTY(EditAnywhere, Category = "States")
+	Enum_Stance Stance = Enum_Stance::Stand;
+	UPROPERTY(EditAnywhere, Category = "States")
+	Enum_Gait Gait = Enum_Gait::Run;
+	UPROPERTY(EditAnywhere, Category = "States")
+	Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
+	UPROPERTY(EditAnywhere, Category = "States")
+	Enum_MovementState MovementState = Enum_MovementState::Idle;
+	UPROPERTY(EditAnywhere, Category = "States")
+	Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
+	UPROPERTY(EditAnywhere, Category = "States")
+	bool JustLanded = false;
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector CrouchSpeed = FVector(225.f, 200.f, 180.f);
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector SprintSpeed = FVector(585, 375.f, 375.f);
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector RunSpeed = FVector(375.f, 375.f, 375.f);
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector LandVelocity = FVector(0.f, 0.f, 0.f);
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector WalkSpeedRelaxed = FVector(165.f, 165.f, 165.f);
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
-	UPROPERTY(VisibleAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
-	UPROPERTY(VisibleAnywhere, Category = "States")
+	UPROPERTY(EditAnywhere, Category = "States")
 	FStruct_CharacterInputState CharacterInputState;
-	UPROPERTY(VisibleAnywhere, Category = "Friction")
+	UPROPERTY(EditAnywhere, Category = "Friction")
 	float SprintGroundFriction = 3.f;
-	UPROPERTY(VisibleAnywhere, Category = "Friction")
+	UPROPERTY(EditAnywhere, Category = "Friction")
 	float WalkGroundFriction = 5.f;
-	UPROPERTY(VisibleAnywhere, Category = "Acceleration")
+	UPROPERTY(EditAnywhere, Category = "Acceleration")
 	float SprintAcceleration = 300.f;
-	UPROPERTY(VisibleAnywhere, Category = "Acceleration")
+	UPROPERTY(EditAnywhere, Category = "Acceleration")
 	float WalkAcceleration = 800.f;
 	UPROPERTY(VisibleAnywhere, Category = "Acceleration")
 	float BrakingFriction = 3.f;
-	UPROPERTY(VisibleAnywhere, Category = "Acceleration")
+	UPROPERTY(EditAnywhere, Category = "Acceleration")
 	float BrakingDeceleration = 500.f;
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, Category = "Ragdoll")
 	UAnimMontage* RagdollGetUpBack;
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, Category = "Ragdoll")
 	UAnimMontage* RagdollGetUpFront;
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, Category = "Ragdoll")
 	FName PelvisBone = FName("pelvis");
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, Category = "Ragdoll")
 	FName SnapshotName = FName("RagdollPose");
 	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
 	bool RagdollOnGround = false;
@@ -101,7 +102,7 @@ public:
 	bool RagdollFaceUp = false;
 	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
 	FVector LastRagdollVelocity = FVector(0.f, 0.f, 0.f);
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ragdoll")
 	float FlailRate = 0.f;
 
 	UFUNCTION(BlueprintCallable, Category = "Set States")
