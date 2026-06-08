@@ -3,6 +3,7 @@
 
 #include "BaseCharacter.h"
 #include "AIController.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
 ABaseCharacter::ABaseCharacter()
@@ -54,7 +55,6 @@ void ABaseCharacter::BeginPlay()
 void ABaseCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 // Called to bind functionality to input
@@ -66,10 +66,12 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 
 void ABaseCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
+    Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 	LocomotionComponent->SetStance(Enum_Stance::Crouch);
 }
 void ABaseCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
+    Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 	LocomotionComponent->SetStance(Enum_Stance::Stand);
 }
 void ABaseCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
@@ -258,3 +260,4 @@ void ABaseCharacter::InitializeLivingState_Implementation(const FStruct_NPCDataA
         ActionComponent->ReevaluateStatePostLoad();
     }
 }
+

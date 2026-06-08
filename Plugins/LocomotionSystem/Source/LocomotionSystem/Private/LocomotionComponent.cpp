@@ -19,7 +19,7 @@ void ULocomotionComponent::BeginPlay()
 	Super::BeginPlay();
 	SetReferences();
 	// ...
-
+	PrimaryComponentTick.TickGroup = ETickingGroup::TG_PostPhysics;
 }
 
 
@@ -47,6 +47,7 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			break;
 		case Enum_MovementMode::Ragdoll:
 			UpdateRagdoll();
+			FlailRate = UKismetMathLibrary::MapRangeClamped(Mesh->GetPhysicsLinearVelocity().Size(), 0.f, 1000.f, 0.f, 1.f);
 			break;
 		default:
 			break;
@@ -70,6 +71,8 @@ void ULocomotionComponent::OnLandedEvent()
 {
 	LandVelocity = CharacterMovement->Velocity;
 }
+
+// conditions
 bool ULocomotionComponent::HasMovementInputVector()
 {
 	return IsValidCharacter ? UKismetMathLibrary::NotEqual_VectorVector(Character->GetPendingMovementInputVector(), FVector::ZeroVector, 0.f) : false;
@@ -97,6 +100,12 @@ bool ULocomotionComponent::CanSprint()
 				)
 			);
 }
+bool ULocomotionComponent::IsSprinting() const {
+	return CharacterInputState.WantsToSprint && CharacterMovement->Velocity.SizeSquared() > pow(RunSpeed.X, 2);
+}
+
+
+// calculate
 float ULocomotionComponent::CalculateMaxAcceleration()
 {
 	float returnvalue = 0.f;
@@ -180,7 +189,7 @@ float ULocomotionComponent::CalculateMaxSpeedCrouched()
 	{
 		return CrouchSpeed.X;
 	}
-	float StrafeSpeedMap = CharacterMovement->bOrientRotationToMovement ? 0.f : StrafeSpeedMapCurve->GetFloatValue(abs(UKismetAnimationLibrary::CalculateDirection(CharacterMovement->Velocity, Character->GetActorRotation())));
+	float StrafeSpeedMap = CharacterMovement->bOrientRotationToMovement ? 0.f : StrafeSpeedMapCurve->GetFloatValue(FMath::Abs(UKismetAnimationLibrary::CalculateDirection(CharacterMovement->Velocity, Character->GetActorRotation())));
 	return StrafeSpeedMap < 1.f ? UKismetMathLibrary::MapRangeClamped(StrafeSpeedMap, 0.f, 1.f, CrouchSpeed.X, CrouchSpeed.Y) : UKismetMathLibrary::MapRangeClamped(StrafeSpeedMap, 1.f, 2.f, CrouchSpeed.Y, CrouchSpeed.Z);
 }
 Enum_Gait ULocomotionComponent::GetDesiredGait()
@@ -198,33 +207,9 @@ Enum_Gait ULocomotionComponent::GetDesiredGait()
 		return Enum_Gait::Run;
 	}
 }
-UAnimMontage* ULocomotionComponent::GetRagdollGetUpMontage()
-{
-	return RagdollFaceUp ? RagdollGetUpBack : RagdollGetUpFront;
-}
-void ULocomotionComponent::UpdateRagdoll()
-{
-	LastRagdollVelocity = Mesh->GetPhysicsLinearVelocity("root");
-	Mesh->SetAllMotorsAngularDriveParams(UKismetMathLibrary::MapRangeClamped(LastRagdollVelocity.Size(), 0.f, 1000.f, 0.f, 25000.f), 0.f, 0.f, false);
-	Mesh->SetEnableGravity(LastRagdollVelocity.Z > -4000.f);
-	SetActorLocationDuringRagdoll();
-}
-void ULocomotionComponent::SetActorLocationDuringRagdoll()
-{
-	FVector TargetLocation = Mesh->GetSocketLocation(PelvisBone);
-	RagdollFaceUp = Mesh->GetSocketRotation(PelvisBone).Roll < 0.f;
-	FRotator TargetRotation = FRotator(0.f, RagdollFaceUp ? Mesh->GetSocketRotation(PelvisBone).Yaw - 180.f : Mesh->GetSocketRotation(PelvisBone).Yaw, 0.f);
-	FHitResult OutHit;
-	GetWorld()->LineTraceSingleByChannel(OutHit, TargetLocation, TargetLocation - FVector(0.f, 0.f, CapsuleComponent->GetScaledCapsuleHalfHeight()), ECollisionChannel::ECC_Visibility);
-	RagdollOnGround = OutHit.bBlockingHit;
-	if (RagdollOnGround)
-	{
-		Character->SetActorLocationAndRotation(FVector(TargetLocation.X, TargetLocation.Y, TargetLocation.Z + 2.f + CapsuleComponent->GetScaledCapsuleHalfHeight() - abs(OutHit.ImpactPoint.Z - OutHit.TraceStart.Z)), TargetRotation);
-	}
-	else {
-		Character->SetActorLocationAndRotation(TargetLocation, TargetRotation);
-	}
-}
+
+
+// input
 void ULocomotionComponent::WantsToSprint(bool IsHeld)
 {
 	CharacterInputState.WantsToSprint = IsHeld;
@@ -257,6 +242,9 @@ void ULocomotionComponent::WantsToCrouch()
 		}
 	}
 }
+
+
+// set states
 void ULocomotionComponent::SetStance(Enum_Stance NewStance)
 {
 	if (Stance != NewStance)
@@ -295,17 +283,22 @@ void ULocomotionComponent::UpdateDynamicMovementSettings()
 	CharacterMovement->MaxWalkSpeed = CalculateMaxSpeed();
 	CharacterMovement->MaxWalkSpeedCrouched = CalculateMaxSpeedCrouched();
 }
-void ULocomotionComponent::StartRagdoll()
+
+
+// ragdoll
+void ULocomotionComponent::StartRagdoll_Implementation()
 {
+	const FVector CharVelocity = CharacterMovement->Velocity;
 	CharacterMovement->SetMovementMode(EMovementMode::MOVE_None);
 	SetMovementMode(Enum_MovementMode::Ragdoll);
 	CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCollisionObjectType(ECollisionChannel::ECC_PhysicsBody);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Mesh->SetAllBodiesBelowSimulatePhysics(PelvisBone, true, true);
+	Mesh->SetPhysicsLinearVelocity(CharVelocity, false);
 	MainAnimInstance->Montage_Stop(0.2f);
 }
-void ULocomotionComponent::StopRagdoll()
+void ULocomotionComponent::StopRagdoll_Implementation()
 {
 	if (IsValid(MainAnimInstance))
 	{
@@ -325,6 +318,39 @@ void ULocomotionComponent::StopRagdoll()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Mesh->SetAllBodiesSimulatePhysics(false);
 }
-bool ULocomotionComponent::IsSprinting() const {
-	return CharacterInputState.WantsToSprint && CharacterMovement->Velocity.SizeSquared2D() > RunSpeed.SizeSquared2D();
+void ULocomotionComponent::SetActorLocationDuringRagdoll_Implementation()
+{
+	FVector TargetLocation = Mesh->GetSocketLocation(PelvisBone);
+	RagdollFaceUp = Mesh->GetSocketRotation(PelvisBone).Roll < 0.f;
+	FRotator TargetRotation = FRotator(0.f, RagdollFaceUp ? Mesh->GetSocketRotation(PelvisBone).Yaw - 180.f : Mesh->GetSocketRotation(PelvisBone).Yaw, 0.f);
+	FHitResult OutHit;
+	GetWorld()->LineTraceSingleByChannel(OutHit, TargetLocation, TargetLocation - FVector(0.f, 0.f, CapsuleComponent->GetScaledCapsuleHalfHeight()), ECollisionChannel::ECC_Visibility);
+	RagdollOnGround = OutHit.bBlockingHit;
+	if (RagdollOnGround)
+	{
+		Character->SetActorLocationAndRotation(FVector(TargetLocation.X, TargetLocation.Y, TargetLocation.Z + 2.f + CapsuleComponent->GetScaledCapsuleHalfHeight() - FMath::Abs(OutHit.ImpactPoint.Z - OutHit.TraceStart.Z)), TargetRotation, false, nullptr, ETeleportType::None);
+		/*FVector GroundedLocation = FVector(
+			TargetLocation.X,
+			TargetLocation.Y,
+			TargetLocation.Z + 2.f + CapsuleComponent->GetScaledCapsuleHalfHeight() - FMath::Abs(OutHit.ImpactPoint.Z - OutHit.TraceStart.Z)
+		);*/
+
+		// CRITICAL FIX: Swap ETeleportType::None to ETeleportType::TeleportPhysics
+		//Character->SetActorLocationAndRotation(GroundedLocation, TargetRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	else {
+		Character->SetActorLocationAndRotation(TargetLocation, TargetRotation, false, nullptr, ETeleportType::None);
+		//Character->SetActorLocationAndRotation(TargetLocation, TargetRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+}
+void ULocomotionComponent::UpdateRagdoll_Implementation()
+{
+	LastRagdollVelocity = Mesh->GetPhysicsLinearVelocity("root");
+	Mesh->SetAllMotorsAngularDriveParams(UKismetMathLibrary::MapRangeClamped(LastRagdollVelocity.Size(), 0.f, 1000.f, 0.f, 25000.f), 0.f, 0.f, false);
+	Mesh->SetEnableGravity(LastRagdollVelocity.Z > -4000.f);
+	SetActorLocationDuringRagdoll();
+}
+UAnimMontage* ULocomotionComponent::GetRagdollGetUpMontage_Implementation()
+{
+	return RagdollFaceUp ? RagdollGetUpBack : RagdollGetUpFront;
 }

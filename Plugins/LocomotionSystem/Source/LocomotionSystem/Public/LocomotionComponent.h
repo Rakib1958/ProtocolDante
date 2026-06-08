@@ -12,7 +12,7 @@
 #include "LocomotionComponent.generated.h"
 
 
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Custom), Blueprintable, meta = (BlueprintSpawnableComponent))
 class LOCOMOTIONSYSTEM_API ULocomotionComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -69,7 +69,7 @@ public:
 	FVector CrouchSpeed = FVector(225.f, 200.f, 180.f);
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector SprintSpeed = FVector(585, 375.f, 375.f);
-	UPROPERTY(EditAnywhere, Category = "Speed")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speed")
 	FVector RunSpeed = FVector(375.f, 375.f, 375.f);
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector LandVelocity = FVector(0.f, 0.f, 0.f);
@@ -79,7 +79,7 @@ public:
 	FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
+	UPROPERTY(EditAnywhere, Category = "States")
 	FStruct_CharacterInputState CharacterInputState;
 	UPROPERTY(EditAnywhere, Category = "Friction")
 	float SprintGroundFriction = 3.f;
@@ -93,21 +93,21 @@ public:
 	float BrakingFriction = 3.f;
 	UPROPERTY(EditAnywhere, Category = "Acceleration")
 	float BrakingDeceleration = 500.f;
-	UPROPERTY(EditAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	UAnimMontage* RagdollGetUpBack;
-	UPROPERTY(EditAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	UAnimMontage* RagdollGetUpFront;
-	UPROPERTY(EditAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	FName PelvisBone = FName("pelvis");
-	UPROPERTY(EditAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	FName SnapshotName = FName("RagdollPose");
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	bool RagdollOnGround = false;
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	bool RagdollFaceUp = false;
-	UPROPERTY(VisibleAnywhere, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	FVector LastRagdollVelocity = FVector(0.f, 0.f, 0.f);
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ragdoll")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
 	float FlailRate = 0.f;
 
 	UFUNCTION(BlueprintCallable, Category = "Set States")
@@ -122,14 +122,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Update Data")
 	void UpdateDynamicMovementSettings();
 
-	UFUNCTION(BlueprintCallable, Category = "Ragdoll")
-	void StartRagdoll();
-	UFUNCTION(BlueprintCallable, Category = "Ragdoll")
-	void StopRagdoll();
-
-
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Movement Analysis")
 	bool IsSprinting() const;
+
+
+	// ragdoll 
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Ragdoll")
+	void StartRagdoll();
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Ragdoll")
+	void StopRagdoll();
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Ragdoll")
+	void UpdateRagdoll();
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Ragdoll")
+	void SetActorLocationDuringRagdoll();
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Ragdoll")
+	UAnimMontage* GetRagdollGetUpMontage();
+
+
 private:
 	void SetReferences();
 	bool HasMovementInputVector();
@@ -141,9 +150,6 @@ private:
 	float CalculateMaxSpeed();
 	float CalculateMaxSpeedCrouched();
 	Enum_Gait GetDesiredGait();
-	UAnimMontage* GetRagdollGetUpMontage();
-	void UpdateRagdoll();
-	void SetActorLocationDuringRagdoll();
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void WantsToSprint(bool IsHeld);

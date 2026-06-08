@@ -167,4 +167,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "AI Variables | Perception")
 	void GetPerceptionLocationAndRotation(FVector& OutLocation, FRotator& OutRotation) const;
 
+	// ragdoll
+	
+
 };
