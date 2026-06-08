@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "LocomotionComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "KismetAnimationLibrary.h"
@@ -144,7 +141,7 @@ float ULocomotionComponent::CalculateMaxSpeed()
 {
 	if (!IsValid(StrafeSpeedMapCurve))
 	{
-		return 0.f;
+		return RunSpeed.X;
 	}
 	float StrafeSpeedMap = CharacterMovement->bUseControllerDesiredRotation ? StrafeSpeedMapCurve->GetFloatValue(abs(UKismetAnimationLibrary::CalculateDirection(CharacterMovement->Velocity, Character->GetActorRotation()))) : 0.f;
 	FVector DesiredSpeed = FVector::ZeroVector;
@@ -181,7 +178,7 @@ float ULocomotionComponent::CalculateMaxSpeedCrouched()
 {
 	if (!IsValid(StrafeSpeedMapCurve))
 	{
-		return 0.f;
+		return CrouchSpeed.X;
 	}
 	float StrafeSpeedMap = CharacterMovement->bOrientRotationToMovement ? 0.f : StrafeSpeedMapCurve->GetFloatValue(abs(UKismetAnimationLibrary::CalculateDirection(CharacterMovement->Velocity, Character->GetActorRotation())));
 	return StrafeSpeedMap < 1.f ? UKismetMathLibrary::MapRangeClamped(StrafeSpeedMap, 0.f, 1.f, CrouchSpeed.X, CrouchSpeed.Y) : UKismetMathLibrary::MapRangeClamped(StrafeSpeedMap, 1.f, 2.f, CrouchSpeed.Y, CrouchSpeed.Z);

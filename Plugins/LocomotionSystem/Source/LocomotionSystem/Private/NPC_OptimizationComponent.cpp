@@ -229,7 +229,7 @@ void UNPC_OptimizationComponent::ApplyMidZone()
 	{
 		MeshComp->bEnableUpdateRateOptimizations = false;
 		// If hidden behind a wall, optimize out bone calculations, but maintain stable pose tracking
-		MeshComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+		MeshComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	}
 }
 
