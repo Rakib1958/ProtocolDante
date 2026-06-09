@@ -1,0 +1,44 @@
+#pragma once
+#include "CoreMinimal.h"
+#include "NativeGameplayTags.h"
+#include "LocomotionTags.generated.h"
+
+namespace LocomotionTags {
+	// Gait
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gait_Walk);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gait_Sprint);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gait_Run);
+
+	// Stance
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Stance_Stand);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Stance_Crouch);
+
+	// Character State
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(CharacterState_Relaxed);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(CharacterState_Stealth);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(CharacterState_Combat);
+
+	// Movement State
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(MovementState_Idle);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(MovementState_Moving);
+
+	// Movement Mode
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(MovementMode_OnGround);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(MovementMode_InAir);
+	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(MovementMode_Ragdoll);
+}
+
+USTRUCT(BlueprintType)
+struct FStruct_CharacterInputState
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToSprint = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToWalk = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToStrafe = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToAim = false;
+};
+
