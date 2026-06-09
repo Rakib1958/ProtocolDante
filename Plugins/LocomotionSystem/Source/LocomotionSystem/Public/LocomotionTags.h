@@ -1,7 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "NativeGameplayTags.h"
-#include "LocomotionTags.generated.h"
 
 namespace LocomotionTags {
 	// Gait
@@ -28,17 +27,4 @@ namespace LocomotionTags {
 	LOCOMOTIONSYSTEM_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(MovementMode_Ragdoll);
 }
 
-USTRUCT(BlueprintType)
-struct FStruct_CharacterInputState
-{
-	GENERATED_BODY()
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool WantsToSprint = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool WantsToWalk = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool WantsToStrafe = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool WantsToAim = false;
-};
 

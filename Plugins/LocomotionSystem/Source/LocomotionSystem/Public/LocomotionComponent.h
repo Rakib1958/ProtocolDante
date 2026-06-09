@@ -11,6 +11,20 @@
 #include "Components/CapsuleComponent.h"
 #include "LocomotionComponent.generated.h"
 
+USTRUCT(BlueprintType)
+struct FStruct_CharacterInputState
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToSprint = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToWalk = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToStrafe = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool WantsToAim = false;
+};
+
 
 UCLASS( ClassGroup=(Custom), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent) )
 class LOCOMOTIONSYSTEM_API ULocomotionComponent : public UActorComponent
