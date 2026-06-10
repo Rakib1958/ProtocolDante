@@ -39,7 +39,15 @@ public class CharacterDemo : ModuleRules
 				"Slate",
 				"SlateCore",
 				// ... add private dependencies that you statically link with here ...	
-			}
+				"InputCore",
+                "AIModule",
+                "GameplayTags",
+                "GameplayTasks",
+                "GameplayAbilities",
+                "EnhancedInput",
+                "NavigationSystem",
+                "LocomotionSystem",
+            }
 			);
 		
 		

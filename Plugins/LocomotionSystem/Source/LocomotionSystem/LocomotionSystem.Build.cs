@@ -39,7 +39,10 @@ public class LocomotionSystem : ModuleRules
 				"Slate",
 				"SlateCore",
 				// ... add private dependencies that you statically link with here ...	
-			}
+				"PoseSearch",
+                "MotionTrajectory",
+                "AnimGraphRuntime",
+            }
 			);
 		
 		
