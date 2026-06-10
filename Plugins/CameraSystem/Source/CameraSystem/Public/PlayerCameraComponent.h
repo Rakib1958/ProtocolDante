@@ -7,6 +7,7 @@
 #include "Camera/CameraComponent.h"
 #include "PlayerCameraComponent.generated.h"
 
+// enumerations
 UENUM(BlueprintType)
 enum class Enum_CameraStyle : uint8 {
 	Close UMETA(DisplayName = "Close"),
@@ -21,7 +22,17 @@ enum class Enum_CameraMode : uint8
 	Strafe UMETA(DisplayName = "Strafe"),
 	Aim UMETA(DisplayName = "Aim")
 };
+UENUM(BlueprintType)
+enum class Enum_CameraPresets : uint8 {
+	LowProfile UMETA(DisplayName = "Low Profile"),
+	HighProfile UMETA(DisplayName = "High Profile"),
+	Sneak UMETA(DisplayName = "Sneak"),
+	Aiming UMETA(DisplayName = "Aiming"),
+	Combat UMETA(DisplayName = "Combat")
+};
 
+
+// structures
 USTRUCT(BlueprintType)
 struct FStruct_GameplayCamera {
 	GENERATED_BODY()
@@ -32,6 +43,34 @@ struct FStruct_GameplayCamera {
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsCrouched = false;
 };
+USTRUCT(BlueprintType)
+struct FStruct_CameraRigParams
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float TargetArmLength = 300.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector SocketOffset = FVector(0.f, 0.f, 0.f);     // shoulder offset
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector PivotOffset = FVector(0.f, 0.f, 20.f);     // arm root offset
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float FieldOfView = 90.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float LagSpeed = 10.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float RotationLagSpeed = 10.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float InterpSpeed = 5.f;                            // how fast we blend TO this rig
+};
+
+
 
 UCLASS( ClassGroup=(Custom), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent) )
 class CAMERASYSTEM_API UPlayerCameraComponent : public UActorComponent
@@ -50,46 +89,82 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GameplayCamera")
-	FCameraAssetReference CameraAsset = nullptr;
+protected:
+	// default camera params
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	float TargetArmLength = 300.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	FVector SpringArmLocation = FVector(0.f, 0.f, 20.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	FRotator SpringArmRotation = FRotator(0.f, 0.f, 0.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	float LagSpeed = 10.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	float RotationLagSpeed = 10.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	float FieldOfView = 90.f;
 	
-
+public:
+	// this must be overriden in blueprint to use gameplay camera
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GameplayCamera")
-	void CreateGameplayCamera();
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GameplayCamera")
+	void SetCameraReference();
+	UFUNCTION(BlueprintCallable, Category = "Initialize")
 	void InitCamera(bool bUseGameplayCamera);
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Camera")
-	void CreateCamera();
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	float TargetArmLength = 300.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	FVector SpringArmLocation = FVector(0.f, 0.f, 20.f);
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	FRotator SpringArmRotation = FRotator(0.f, 0.f, 0.f);
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	float LagSpeed = 10.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	float RotationLagSpeed = 10.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	float FieldOfView = 90.f;
-
 private:
-	UFUNCTION(BlueprintCallable, Category = "Reference")
-	void SetReference();
+	
+	// these are invisible in blueprint
 
 	// private variables
 	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	ACharacter* Character;
 	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
 	UGameplayCameraComponent* GameplayCameraRef = nullptr;
-	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Camera")
 	USpringArmComponent* SpringArmRef = nullptr;
-	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Camera")
 	UCameraComponent* CameraRef = nullptr;
-	
+
+	// private methods
+	void SetReference();
+	void CreateCamera();
 	void InitializeCamera();
+	void CreateGameplayCamera();
 	void InitializeGameplayCamera();
-	
+
+// custom camera tick
+public:
+	// filled by Blueprint per character variant
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Rigs")
+	TMap<Enum_CameraPresets, FStruct_CameraRigParams> RigMap;
+
+	// override slot — set by anim notifies, cleared on notify end
+	UPROPERTY(BlueprintReadWrite, Category = "Camera|Override")
+	FStruct_CameraRigParams OverrideRig;
+	UPROPERTY(BlueprintReadWrite, Category = "Camera|Override")
+	bool bIsOverrideActive = false;
+
+	// current interpolated state
+	UPROPERTY(BlueprintReadOnly, Category = "Camera|State")
+	FStruct_CameraRigParams CurrentRig;
+
+	// active style — set by Blueprint tick logic
+	UPROPERTY(BlueprintReadWrite, Category = "Camera|State")
+	Enum_CameraPresets ActivePreset = Enum_CameraPresets::LowProfile;
+
+	// collision correction applied on top of rig
+	UPROPERTY(BlueprintReadOnly, Category = "Camera|Collision")
+	float CollisionArmLengthCorrection = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "Camera|Collision")
+	float CollisionOffsetCorrection = 0.f;
+
+private:
+	FStruct_CameraRigParams TargetRig;
+	bool bIsBlendingOut = false;
+
+	void EvaluateTargetRig();
+	void InterpCurrentRig(float DeltaTime);
+	void ApplyCurrentRigToSpringArm();
+	void UpdateCollision(float DeltaTime);
 		
 };

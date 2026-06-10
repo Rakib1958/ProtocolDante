@@ -28,6 +28,7 @@ public class CameraSystem : ModuleRules
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
 				"GameplayCameras",
+				"CinematicCamera",
             }
 			);
 			
