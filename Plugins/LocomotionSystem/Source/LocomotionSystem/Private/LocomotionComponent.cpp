@@ -24,7 +24,13 @@ void ULocomotionComponent::BeginPlay()
 	Super::BeginPlay();
 	SetReferences();
 	// ...
-	
+	if (bIsValidCharacter)
+	{
+		PrimaryComponentTick.AddPrerequisite(
+			Character,
+			CharacterMovement->PrimaryComponentTick
+		);
+	}
 }
 
 // tick

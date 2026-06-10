@@ -27,7 +27,7 @@ ABaseCharacter::ABaseCharacter()
 void ABaseCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	GetCharacterMovement()->AddTickPrerequisiteComponent(LocomotionComponent);
+	//GetCharacterMovement()->AddTickPrerequisiteComponent(LocomotionComponent);
 	
 }
 
