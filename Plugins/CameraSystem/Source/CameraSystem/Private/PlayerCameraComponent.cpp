@@ -31,9 +31,16 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 void UPlayerCameraComponent::CreateGameplayCamera_Implementation()
 {
-	GameplayCameraRef = NewObject<UGameplayCameraComponent>(GetOwner(), TEXT("Gameplay Camera"));
-	GameplayCameraRef->SetupAttachment(Character->GetMesh());
+	if (!IsValid(GameplayCameraRef))
+	{
+		GameplayCameraRef = NewObject<UGameplayCameraComponent>(
+			GetOwner(), TEXT("GameplayCamera")
+		);
+		GameplayCameraRef->bAutoActivate = false;
+	}
+	GameplayCameraRef->SetupAttachment(Character->GetRootComponent());
 	GameplayCameraRef->RegisterComponent();
+	GameplayCameraRef->CameraReference = CameraAsset;
 }
 void UPlayerCameraComponent::CreateCamera_Implementation()
 {
@@ -83,9 +90,10 @@ void UPlayerCameraComponent::InitializeCamera()
 void UPlayerCameraComponent::InitializeGameplayCamera()
 {
 	if (!IsValid(GameplayCameraRef)) return;
-
 	GameplayCameraRef->SetRelativeLocation(FVector(0.f, 0.f, 100.f));
 	GameplayCameraRef->SetRelativeRotation(FRotator(0.f, 90.f, 0.f));
-	GameplayCameraRef->ActivateCameraForPlayerController(Cast<APlayerController>(Character->GetController()));
+	GameplayCameraRef->ActivateCameraForPlayerController(
+		Cast<APlayerController>(Character->GetController())
+	);
 }
 

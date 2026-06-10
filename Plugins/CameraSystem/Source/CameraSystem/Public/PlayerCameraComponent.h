@@ -1,7 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
-
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Character.h"
@@ -54,7 +51,7 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GameplayCamera")
-	UCameraAsset* CameraRig = nullptr;
+	FCameraAssetReference CameraAsset = nullptr;
 	
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GameplayCamera")
@@ -78,12 +75,13 @@ public:
 	float FieldOfView = 90.f;
 
 private:
+	UFUNCTION(BlueprintCallable, Category = "Reference")
 	void SetReference();
 
 	// private variables
 	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	ACharacter* Character;
-	UPROPERTY(BlueprintReadOnly, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
 	UGameplayCameraComponent* GameplayCameraRef = nullptr;
 	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
 	USpringArmComponent* SpringArmRef = nullptr;
