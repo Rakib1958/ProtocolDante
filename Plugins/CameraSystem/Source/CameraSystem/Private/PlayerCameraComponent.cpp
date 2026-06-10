@@ -31,7 +31,18 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 void UPlayerCameraComponent::CreateGameplayCamera_Implementation()
 {
-	GameplayCameraRef = CreateDefaultSubobject<UGameplayCameraComponent>(TEXT("Gameplay Camera"));
+	GameplayCameraRef = NewObject<UGameplayCameraComponent>(GetOwner(), TEXT("Gameplay Camera"));
+	GameplayCameraRef->SetupAttachment(Character->GetMesh());
+	GameplayCameraRef->RegisterComponent();
+}
+void UPlayerCameraComponent::CreateCamera_Implementation()
+{
+	SpringArmRef = NewObject<USpringArmComponent>(GetOwner(), TEXT("Camera Boom"));
+	SpringArmRef->SetupAttachment(Character->GetRootComponent());
+	SpringArmRef->RegisterComponent();
+	CameraRef = NewObject<UCameraComponent>(GetOwner(), TEXT("Camera"));
+	CameraRef->SetupAttachment(SpringArmRef);
+	CameraRef->RegisterComponent();
 }
 void UPlayerCameraComponent::InitCamera_Implementation(bool bUseGameplayCamera)
 {
@@ -41,16 +52,13 @@ void UPlayerCameraComponent::InitCamera_Implementation(bool bUseGameplayCamera)
 	}
 	if (bUseGameplayCamera)
 	{
+		CreateGameplayCamera();
 		InitializeGameplayCamera();
 	}
 	else {
+		CreateCamera();
 		InitializeCamera();
 	}
-}
-void UPlayerCameraComponent::CreateCamera_Implementation()
-{
-	SpringArmRef = CreateDefaultSubobject<USpringArmComponent>(TEXT("Camera Boom"));
-	CameraRef = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 }
 void UPlayerCameraComponent::SetReference()
 {
@@ -58,29 +66,24 @@ void UPlayerCameraComponent::SetReference()
 }
 void UPlayerCameraComponent::InitializeCamera()
 {
-	if (!IsValid(CameraRef))
-	{
-		SpringArmRef->SetupAttachment(Character->GetRootComponent());
-		SpringArmRef->SetRelativeLocation(SpringArmLocation);
-		SpringArmRef->bUsePawnControlRotation = true;
-		SpringArmRef->TargetArmLength = TargetArmLength;
-		SpringArmRef->SetRelativeRotation(SpringArmRotation);
-		SpringArmRef->bEnableCameraLag = true;
-		SpringArmRef->bEnableCameraRotationLag = true;
-		SpringArmRef->CameraLagSpeed = LagSpeed;
-		SpringArmRef->CameraRotationLagSpeed = RotationLagSpeed;
-
-		CameraRef->FieldOfView = FieldOfView;
-		CameraRef->bAutoActivate = true;
-	}
+	if (!IsValid(CameraRef) && !IsValid(SpringArmRef)) return;
+	
+	SpringArmRef->SetRelativeLocation(SpringArmLocation);
+	SpringArmRef->bUsePawnControlRotation = true;
+	SpringArmRef->TargetArmLength = TargetArmLength;
+	SpringArmRef->SetRelativeRotation(SpringArmRotation);
+	SpringArmRef->bEnableCameraLag = true;
+	SpringArmRef->bEnableCameraRotationLag = true;
+	SpringArmRef->CameraLagSpeed = LagSpeed;
+	SpringArmRef->CameraRotationLagSpeed = RotationLagSpeed;
+	
+	CameraRef->FieldOfView = FieldOfView;
+	CameraRef->bAutoActivate = true;
 }
 void UPlayerCameraComponent::InitializeGameplayCamera()
 {
-	if (!IsValid(GameplayCameraRef))
-	{
-		CreateGameplayCamera();
-	}
-	GameplayCameraRef->SetupAttachment(Character->GetMesh());
+	if (!IsValid(GameplayCameraRef)) return;
+
 	GameplayCameraRef->SetRelativeLocation(FVector(0.f, 0.f, 100.f));
 	GameplayCameraRef->SetRelativeRotation(FRotator(0.f, 90.f, 0.f));
 	GameplayCameraRef->ActivateCameraForPlayerController(Cast<APlayerController>(Character->GetController()));
