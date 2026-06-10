@@ -70,6 +70,8 @@ struct FStruct_CameraRigParams
 	float InterpSpeed = 5.f;                            // how fast we blend TO this rig
 };
 
+// delegates
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPresetChanged);
 
 
 UCLASS( ClassGroup=(Custom), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent) )
@@ -110,6 +112,9 @@ public:
 	void SetCameraReference();
 	UFUNCTION(BlueprintCallable, Category = "Initialize")
 	void InitCamera(bool bUseGameplayCamera);
+
+	UPROPERTY(BlueprintAssignable, Category = "Delegates")
+	FOnPresetChanged OnCameraPresetChanged;
 
 private:
 	

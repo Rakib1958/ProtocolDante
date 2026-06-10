@@ -27,6 +27,7 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef)) return;
 	if (bIsOverrideActive) return;
+	OnCameraPresetChanged.Broadcast();
 	EvaluateTargetRig();        // picks OverrideRig or RigMap[ActiveStyle]
 	InterpCurrentRig(DeltaTime); // FInterpTo per field toward target
 	UpdateCollision(DeltaTime);  // sphere sweep, modifies correction values
