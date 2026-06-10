@@ -4,14 +4,15 @@
 #include "LocomotionComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "KismetAnimationLibrary.h"
+#include "Engine/Engine.h"
 
 // Sets default values for this component's properties
 ULocomotionComponent::ULocomotionComponent()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
-	PrimaryComponentTick.bStartWithTickEnabled = false;
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = true;
 
 	// ...
 }
@@ -26,6 +27,17 @@ void ULocomotionComponent::BeginPlay()
 	
 }
 
+// tick
+void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!bIsValidCharacter) return;
+	if (MovementMode == LocomotionTags::MovementMode_Ragdoll) return;
+	OnUpdateMovement.Broadcast();
+	OnUpdateRotation.Broadcast();
+	
+}
+
 // references
 void ULocomotionComponent::SetReferences()
 {
@@ -36,7 +48,10 @@ void ULocomotionComponent::SetReferences()
 		CapsuleComponent = Character->GetCapsuleComponent();
 		Mesh = Character->GetMesh();
 		MainAnimInstance = Mesh->GetAnimInstance();
-		if (IsValid(CharacterMovement) && IsValid(CapsuleComponent) && IsValid(Mesh) && IsValid(MainAnimInstance)) bIsValidCharacter = true;
+		if (IsValid(CharacterMovement) && IsValid(CapsuleComponent) && IsValid(Mesh) && IsValid(MainAnimInstance))
+		{
+			bIsValidCharacter = true;
+		}
 	}
 }
 
@@ -103,6 +118,7 @@ void ULocomotionComponent::SetCharacterState(FGameplayTag NewCharacterState)
 		CharacterState = NewCharacterState;
 }
 
+
 // ragdoll (just definitions)
 void ULocomotionComponent::StartRagdoll_Implementation()
 {
@@ -116,7 +132,7 @@ void ULocomotionComponent::UpdateRagdoll_Implementation()
 void ULocomotionComponent::SetActorLocationDuringRagdoll_Implementation()
 {
 }
-UAnimMontage* ULocomotionComponent::GetRagdollGetUpMontage_Implementation()
+UAnimMontage* ULocomotionComponent::GetRagdollGetUpMontage_Implementation() const
 {
 	return nullptr;
 }
@@ -175,4 +191,68 @@ FGameplayTag ULocomotionComponent::GetDesiredGait() const
 	if (CanSprint()) return LocomotionTags::Gait_Sprint;
 	else if (CharacterInputState.WantsToWalk) return LocomotionTags::Gait_Walk;
 	return LocomotionTags::Gait_Run;
+}
+
+
+// debug
+void ULocomotionComponent::DebugPrint(FString text = TEXT("Hello"), float duration = 5.f, FColor color = FColor::Red)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			-1,          // Key: Use -1 to create a new message line, or a positive integer to overwrite an existing one
+			duration,        // Duration: How long the message stays on screen (in seconds)
+			color,// Color: The text color
+			text // The text macro
+		);
+	}
+}
+
+
+// input
+void ULocomotionComponent::WantsToStrafe_Implementation()
+{
+	CharacterInputState.WantsToStrafe = !CharacterInputState.WantsToStrafe;
+}
+void ULocomotionComponent::WantsToSprint_Implementation(bool bIsHeld)
+{
+	CharacterInputState.WantsToSprint = bIsHeld;
+}
+void ULocomotionComponent::WantsToAim_Implementation(bool bIsHeld)
+{
+	CharacterInputState.WantsToAim = bIsHeld;
+	CharacterInputState.WantsToWalk = bIsHeld;
+}
+void ULocomotionComponent::WantsToWalk_Implementation()
+{
+	CharacterInputState.WantsToWalk = !CharacterInputState.WantsToWalk;
+}
+void ULocomotionComponent::WantsToCrouch_Implementation()
+{
+	if (!CharacterMovement->IsFalling())
+	{
+		if (Character->IsCrouched())
+		{
+			Character->UnCrouch();
+		}
+		else {
+			Character->Crouch();
+		}
+	}
+}
+void ULocomotionComponent::WantsToJump_Implementation(bool bIsHeld)
+{
+	if (bIsHeld)
+	{
+		if (Character->IsCrouched())
+		{
+			Character->UnCrouch();
+		}
+		else {
+			Character->Jump();
+		}
+	}
+	else {
+		Character->StopJumping();
+	}
 }

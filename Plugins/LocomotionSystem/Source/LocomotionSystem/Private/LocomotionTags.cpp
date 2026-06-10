@@ -24,4 +24,7 @@ namespace LocomotionTags
 		UE_DEFINE_GAMEPLAY_TAG(MovementMode_OnGround, "LocomotionSystem.MovementMode.OnGround")
 		UE_DEFINE_GAMEPLAY_TAG(MovementMode_InAir, "LocomotionSystem.MovementMode.InAir")
 		UE_DEFINE_GAMEPLAY_TAG(MovementMode_Ragdoll, "LocomotionSystem.MovementMode.Ragdoll")
+	// rotation mode
+		UE_DEFINE_GAMEPLAY_TAG(RotationMode_VelocityDirection, "LocomotionSystem.RotationMode.VelocityDirection")
+		UE_DEFINE_GAMEPLAY_TAG(RotationMode_LookingDirection, "LocomotionSystem.RotationMode.LookingDirection")
 }

@@ -27,7 +27,8 @@ public class LocomotionSystem : ModuleRules
 			{
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
-			}
+				"GameplayTags",
+            }
 			);
 			
 		
@@ -42,7 +43,6 @@ public class LocomotionSystem : ModuleRules
                 "PoseSearch",
                 "MotionTrajectory",
                 "AnimGraphRuntime",
-				"GameplayTags",
             }
 			);
 		

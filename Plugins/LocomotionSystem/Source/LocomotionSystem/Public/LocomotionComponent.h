@@ -25,6 +25,8 @@ struct FStruct_CharacterInputState
 	bool WantsToAim = false;
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateMovement);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateRotation);
 
 UCLASS( ClassGroup=(Custom), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent) )
 class LOCOMOTIONSYSTEM_API ULocomotionComponent : public UActorComponent
@@ -34,11 +36,11 @@ class LOCOMOTIONSYSTEM_API ULocomotionComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	ULocomotionComponent();
-
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 // custom methods and variables
 private:
@@ -66,6 +68,8 @@ private:
 	float CalculateMaxSpeedCrouched();
 	FGameplayTag GetDesiredGait() const;
 
+	void DebugPrint(FString text, float duration, FColor color);
+
 protected:
 	
 	// curves
@@ -87,6 +91,8 @@ protected:
 	FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config")
 	FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config")
+	FVector LandVelocity = FVector::ZeroVector;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config")
 	float WalkAcceleration = 800.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config")
@@ -115,6 +121,12 @@ protected:
 	FVector LastRagdollVelocity = FVector(0.f, 0.f, 0.f);
 
 public:
+
+	// delegates
+	UPROPERTY(VisibleAnywhere, BlueprintAssignable, Category = "Delegates")
+	FOnUpdateMovement OnUpdateMovement;
+	UPROPERTY(VisibleAnywhere, BlueprintAssignable, Category = "Delegates")
+	FOnUpdateRotation OnUpdateRotation;
 
 	// public variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
@@ -146,7 +158,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Ragdoll")
 	void SetActorLocationDuringRagdoll();
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Ragdoll")
-	UAnimMontage* GetRagdollGetUpMontage();
+	UAnimMontage* GetRagdollGetUpMontage() const;
 
 	// update data
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "States")
@@ -164,4 +176,19 @@ public:
 	void SetMovementMode(FGameplayTag NewMovementMode);
 	UFUNCTION(BlueprintCallable, Category = "Set State")
 	void SetCharacterState(FGameplayTag NewCharacterState);
+
+
+	// set input
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Set Input")
+	void WantsToSprint(bool bIsHeld);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Set Input")
+	void WantsToAim(bool bIsHeld);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Set Input")
+	void WantsToWalk();
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Set Input")
+	void WantsToCrouch();
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Set Input")
+	void WantsToJump(bool bIsHeld);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Set Input")
+	void WantsToStrafe();
 };
