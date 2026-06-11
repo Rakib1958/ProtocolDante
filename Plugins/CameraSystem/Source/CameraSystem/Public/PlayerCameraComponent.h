@@ -79,4 +79,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Camera|Override")
 	bool bIsOverrideActive = false;
 
+	// maps to find correct rig
+
+
 };
