@@ -76,7 +76,7 @@ bool ULocomotionComponent::CanSprint() const
 			);
 }
 bool ULocomotionComponent::IsSprinting() {
-	return CharacterInputState.WantsToSprint && CharacterMovement->Velocity.SizeSquared() > pow(JogSpeed.X, 2);
+	return CharacterInputState.WantsToSprint && CharacterMovement->Velocity.SizeSquared() > 0.f;
 }
 
 // update data

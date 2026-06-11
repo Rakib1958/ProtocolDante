@@ -104,6 +104,9 @@ private:
 	FStruct_CameraRigOffset CurrentStanceOffset;
 	FStruct_CameraRigOffset CurrentShoulderOffset;
 
+	Enum_CameraStanceOffset LastStanceOffset = Enum_CameraStanceOffset::Stand;
+	bool bIsStanceTransitioning = false;
+
 	// Override rig target and its interp speed
 	FStruct_CameraRigParams OverrideRig;
 	float OverrideInterpSpeed = 5.f;

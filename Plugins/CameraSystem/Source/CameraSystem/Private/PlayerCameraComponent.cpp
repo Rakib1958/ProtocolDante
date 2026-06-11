@@ -77,19 +77,23 @@ void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
 {
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
 	if (!IsValid(Capsule)) return;
-	if (DesiredCameraState.StanceOffset != Enum_CameraStanceOffset::Stand)
+	if (DesiredCameraState.StanceOffset != LastStanceOffset)
 	{
-		float TargetZ = Capsule->GetScaledCapsuleHalfHeight()
-			+ CurrentBase.PivotOffset.Z
-			+ CurrentStanceOffset.PivotOffsetDelta.Z;
-
-		if (!bPivotZInitialized)
-		{
-			SmoothedPivotZ = TargetZ;
-			bPivotZInitialized = true;
-		}
+		LastStanceOffset = DesiredCameraState.StanceOffset;
+		bIsStanceTransitioning = true;
+	}
+	if (bIsStanceTransitioning)
+	{
+		float TargetZ = Capsule->GetScaledCapsuleHalfHeight();
 
 		SmoothedPivotZ = FMath::FInterpTo(SmoothedPivotZ, TargetZ, DeltaTime, CrouchZInterpSpeed);
+
+		// Stop transitioning when close enough
+		if (FMath::IsNearlyEqual(SmoothedPivotZ, TargetZ, 0.5f))
+		{
+			SmoothedPivotZ = TargetZ;
+			bIsStanceTransitioning = false;
+		}
 	}
 }
 
@@ -151,8 +155,19 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 	) * SocketYSign;
 
 	FVector FinalPivot = CurrentBase.PivotOffset + CurrentStanceOffset.PivotOffsetDelta;
-	// Z is driven by smoothed capsule tracking, X and Y from rig
-	FinalPivot.Z = SmoothedPivotZ;
+
+	// Z smoothing only adds a correction during stance transitions
+	// so capsule shrink/grow doesn't snap the camera
+	if (bIsStanceTransitioning)
+	{
+		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+		if (IsValid(Capsule))
+		{
+			float ActualCapsuleZ = Capsule->GetScaledCapsuleHalfHeight();
+			float ZCorrection = SmoothedPivotZ - ActualCapsuleZ;  // delta from target
+			FinalPivot.Z += ZCorrection;
+		}
+	}
 
 	float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta;
 
