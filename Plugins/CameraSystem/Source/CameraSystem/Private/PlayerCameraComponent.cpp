@@ -1,4 +1,6 @@
 ﻿#include "PlayerCameraComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Engine/Engine.h"
 
 UPlayerCameraComponent::UPlayerCameraComponent()
 {
@@ -31,6 +33,10 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		EvaluateAndInterpShoulderOffset(DeltaTime);
 		UpdateCapsuleZSmoothing(DeltaTime);
 		UpdateCollision(DeltaTime);
+		if (CharacterMovement->IsFalling())
+		{
+			UpdateFallFeel(DeltaTime);
+		}
 		ApplyToSpringArm();
 	}
 }
@@ -134,13 +140,45 @@ void UPlayerCameraComponent::UpdateCollision(float DeltaTime)
 	}
 }
 
+void UPlayerCameraComponent::UpdateFallFeel(float DeltaTime)
+{
+	if (!IsValid(Character)) return;
+
+	float FallVelocity = Character->GetCharacterMovement()->Velocity.Z;
+
+	// Only zoom on significant downward velocity (below -600 cm/s)
+	float FallT = FMath::Clamp(
+		FMath::GetMappedRangeValueClamped(
+			FVector2D(-600.f, -2400.f),  // velocity range
+			FVector2D(0.f, 1.f),          // normalized
+			FallVelocity
+		), 0.f, 1.f
+	);
+	/*if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("FallT, %f"), FallT));
+	}*/
+	// Target FOV reduction — max 15 degrees zoom at terminal velocity
+	float TargetFOVReduction = FMath::Lerp(0.f, -15.f, FallT);
+	FallFOVReduction = FMath::FInterpTo(
+		FallFOVReduction, TargetFOVReduction, DeltaTime, 10.f // slow in
+	);
+
+	// Also tighten arm length slightly — "death creeping in" feel
+	float TargetArmReduction = FMath::Lerp(0.f, -60.f, FallT);
+	FallArmReduction = FMath::FInterpTo(
+		FallArmReduction, TargetArmReduction, DeltaTime, 10.f
+	);
+}
+
 void UPlayerCameraComponent::ApplyToSpringArm()
 {
 	// Combine all layers
 	float FinalArmLength = FMath::Max(
 		CurrentBase.TargetArmLength
 		+ CurrentStanceOffset.ArmLengthDelta
-		- CollisionArmCorrection,
+		- CollisionArmCorrection
+		- FallArmReduction,
 		0.f
 	);
 
@@ -169,7 +207,10 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 		}
 	}
 
-	float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta;
+	//float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta;
+	float FinalFOV = CurrentBase.FieldOfView
+		+ CurrentStanceOffset.FOVDelta
+		+ FallFOVReduction;  // additive, negative = zoom in
 
 	// Write to spring arm
 	SpringArmRef->TargetArmLength = FinalArmLength;
@@ -185,6 +226,10 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 void UPlayerCameraComponent::SetReference()
 {
 	Character = Cast<ACharacter>(GetOwner());
+	if (IsValid(Character))
+	{
+		CharacterMovement = Character->GetCharacterMovement();
+	}
 }
 
 void UPlayerCameraComponent::InitCamera(bool bUseGameplayCamera)

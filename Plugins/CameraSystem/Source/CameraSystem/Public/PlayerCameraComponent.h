@@ -88,6 +88,9 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
 	ACharacter* Character = nullptr;
 
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
+	UCharacterMovementComponent* CharacterMovement = nullptr;
+
 	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
 	UGameplayCameraComponent* GameplayCameraRef = nullptr;
 
@@ -120,6 +123,9 @@ private:
 	float CollisionArmCorrection = 0.f;
 	float CollisionOffsetCorrection = 0.f;
 
+	float FallFOVReduction;
+	float FallArmReduction;
+
 	// ── Private Methods ───────────────────────────────────────────────────────
 
 	void SetReference();
@@ -135,4 +141,5 @@ private:
 	void UpdateCapsuleZSmoothing(float DeltaTime);
 	void UpdateCollision(float DeltaTime);
 	void ApplyToSpringArm();
+	void UpdateFallFeel(float DeltaTime);
 };

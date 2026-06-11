@@ -36,6 +36,11 @@ enum class Enum_Gait : uint8 {
 	Jog UMETA(DisplayName = "Jog"),
 	Run UMETA(DisplayName = "Run")
 };
+UENUM(BlueprintType)
+enum class Enum_RotationMode : uint8 {
+	VelocityDirection UMETA(DisplayName = "VelocityDirection"),
+	LookingDirection UMETA(DisplayName = "LookingDirection")
+};
 
 // structures
 USTRUCT(BlueprintType)
