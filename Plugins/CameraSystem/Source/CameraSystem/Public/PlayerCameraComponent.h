@@ -64,11 +64,11 @@ public:
 	// ── Default Values (fallback / initial spring arm setup) ─────────────────
 
 protected:
-	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
 	float TargetArmLength = 300.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	FVector SpringArmLocation = FVector(0.f, 0.f, 20.f);
+	FVector SpringArmLocation = FVector(0.f, 0.f, 0.f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
 	FRotator SpringArmRotation = FRotator(0.f, 0.f, 0.f);
@@ -80,7 +80,7 @@ protected:
 	float RotationLagSpeed = 10.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	float FieldOfView = 90.f;*/
+	float FieldOfView = 90.f;
 
 private:
 	// ── Component References ──────────────────────────────────────────────────

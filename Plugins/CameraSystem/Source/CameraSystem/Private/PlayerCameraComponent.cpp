@@ -18,13 +18,13 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef) || !IsValid(Character)) return;
-	if (bIsOverrideActive)
-	{
-		return;
-	}
-	// Pull desired state from character via interface each tick
 	if (Character->GetClass()->ImplementsInterface(UGameplayCameraInterface::StaticClass()))
 	{
+		bIsOverrideActive = IGameplayCameraInterface::Execute_OverrideBaseCamera(Character);
+		if (bIsOverrideActive)
+		{
+			return;
+		}
 		DesiredCameraState = IGameplayCameraInterface::Execute_GetCharacterPropertiesForSpringArmCamera(Character);
 		EvaluateAndInterpBase(DeltaTime);
 		EvaluateAndInterpStanceOffset(DeltaTime);
@@ -77,18 +77,20 @@ void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
 {
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
 	if (!IsValid(Capsule)) return;
-
-	float TargetZ = Capsule->GetScaledCapsuleHalfHeight()
-		+ CurrentBase.PivotOffset.Z
-		+ CurrentStanceOffset.PivotOffsetDelta.Z;
-
-	if (!bPivotZInitialized)
+	if (DesiredCameraState.StanceOffset != Enum_CameraStanceOffset::Stand)
 	{
-		SmoothedPivotZ = TargetZ;
-		bPivotZInitialized = true;
-	}
+		float TargetZ = Capsule->GetScaledCapsuleHalfHeight()
+			+ CurrentBase.PivotOffset.Z
+			+ CurrentStanceOffset.PivotOffsetDelta.Z;
 
-	SmoothedPivotZ = FMath::FInterpTo(SmoothedPivotZ, TargetZ, DeltaTime, CrouchZInterpSpeed);
+		if (!bPivotZInitialized)
+		{
+			SmoothedPivotZ = TargetZ;
+			bPivotZInitialized = true;
+		}
+
+		SmoothedPivotZ = FMath::FInterpTo(SmoothedPivotZ, TargetZ, DeltaTime, CrouchZInterpSpeed);
+	}
 }
 
 void UPlayerCameraComponent::UpdateCollision(float DeltaTime)
@@ -199,7 +201,7 @@ void UPlayerCameraComponent::CreateCamera()
 	SpringArmRef->RegisterComponent();
 
 	CameraRef = NewObject<UCameraComponent>(GetOwner(), TEXT("Camera"));
-	CameraRef->AttachToComponent(SpringArmRef, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	CameraRef->AttachToComponent(SpringArmRef, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("SpringEndPoint"));
 	CameraRef->RegisterComponent();
 }
 
@@ -207,25 +209,25 @@ void UPlayerCameraComponent::InitializeCamera()
 {
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef)) return;
 
-	//SpringArmRef->SetRelativeLocation(SpringArmLocation);
-	//SpringArmRef->SetRelativeRotation(SpringArmRotation);
-	//SpringArmRef->bUsePawnControlRotation = true;
-	//SpringArmRef->TargetArmLength = TargetArmLength;
-	//SpringArmRef->bEnableCameraLag = true;
-	//SpringArmRef->bEnableCameraRotationLag = true;
-	//SpringArmRef->CameraLagSpeed = LagSpeed;
-	//SpringArmRef->CameraRotationLagSpeed = RotationLagSpeed;
-	//SpringArmRef->bDoCollisionTest = false; // we handle collision ourselves
+	SpringArmRef->SetRelativeLocation(SpringArmLocation);
+	SpringArmRef->SetRelativeRotation(SpringArmRotation);
+	SpringArmRef->bUsePawnControlRotation = true;
+	SpringArmRef->TargetArmLength = TargetArmLength;
+	SpringArmRef->bEnableCameraLag = true;
+	SpringArmRef->bEnableCameraRotationLag = true;
+	SpringArmRef->CameraLagSpeed = LagSpeed;
+	SpringArmRef->CameraRotationLagSpeed = RotationLagSpeed;
+	SpringArmRef->bDoCollisionTest = false; // we handle collision ourselves
 
-	//CameraRef->FieldOfView = FieldOfView;
-	//CameraRef->bAutoActivate = true;
+	CameraRef->FieldOfView = FieldOfView;
+	CameraRef->bAutoActivate = true;
 
-	//// Seed interp state with defaults so first frame has no pop
-	//CurrentBase.TargetArmLength = TargetArmLength;
-	//CurrentBase.PivotOffset = SpringArmLocation;
-	//CurrentBase.FieldOfView = FieldOfView;
-	//CurrentBase.LagSpeed = LagSpeed;
-	//CurrentBase.RotationLagSpeed = RotationLagSpeed;
+	// Seed interp state with defaults so first frame has no pop
+	CurrentBase.TargetArmLength = TargetArmLength;
+	CurrentBase.PivotOffset = SpringArmLocation;
+	CurrentBase.FieldOfView = FieldOfView;
+	CurrentBase.LagSpeed = LagSpeed;
+	CurrentBase.RotationLagSpeed = RotationLagSpeed;
 }
 
 void UPlayerCameraComponent::CreateGameplayCamera()

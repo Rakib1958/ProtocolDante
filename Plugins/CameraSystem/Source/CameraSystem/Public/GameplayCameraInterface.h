@@ -153,5 +153,5 @@ public:
 	FStruct_SpringArmCamera GetCharacterPropertiesForSpringArmCamera();
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SpringArm Camera")
-	void OverrideBaseCamera(bool bOverride);
+	bool OverrideBaseCamera();
 };
