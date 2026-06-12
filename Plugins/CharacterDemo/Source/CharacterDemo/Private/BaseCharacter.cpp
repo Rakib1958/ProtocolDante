@@ -17,7 +17,7 @@ ABaseCharacter::ABaseCharacter()
 	GetCharacterMovement()->bUseControllerDesiredRotation = false;
 	GetCharacterMovement()->RotationRate = FRotator(0.f, -1.f, 0.f);
 	GetCharacterMovement()->bUseSeparateBrakingFriction = true;
-	GetCharacterMovement()->SetTickGroup(ETickingGroup::TG_PostPhysics);
+	//GetCharacterMovement()->SetTickGroup(ETickingGroup::TG_PostPhysics);
 	bUseControllerRotationYaw = false;
 	LocomotionComponent = CreateDefaultSubobject<ULocomotionComponent>(TEXT("LocomotionComponent"));
 	
@@ -63,7 +63,15 @@ void ABaseCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8
 		LocomotionComponent->SetMovementMode(Enum_MovementMode::OnGround);
 		break;
 	case EMovementMode::MOVE_Falling:
-		LocomotionComponent->SetMovementMode(Enum_MovementMode::InAir);
+		switch (LocomotionComponent->Stance)
+		{
+		case Enum_Stance::Prone:
+			LocomotionComponent->StartRagdoll();
+			break;
+		default:
+			LocomotionComponent->SetMovementMode(Enum_MovementMode::InAir);
+			break;
+		}
 		break;
 	case EMovementMode::MOVE_NavWalking:
 		LocomotionComponent->SetMovementMode(Enum_MovementMode::OnGround);
