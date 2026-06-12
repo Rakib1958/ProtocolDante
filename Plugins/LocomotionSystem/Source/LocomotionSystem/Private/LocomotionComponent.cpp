@@ -24,6 +24,7 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 	// 1. Process capsule smoothing universally across ALL stance changes
 	TickStanceTransition(DeltaTime);
+	TickFloorDetection(DeltaTime);
 
 	// 2. Fire multi-cast handlers to let player Blueprint update base tracking matrices
 	OnUpdateMovement.Broadcast();
@@ -32,10 +33,16 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	// ─── FIX: ENFORCE PRONE ROTATION OVERRIDES AFTER BLUEPRINT DELEGATE TUPLES ───
 	if (Stance == Enum_Stance::Prone)
 	{
-		CharacterMovement->bOrientRotationToMovement = true;
-		CharacterMovement->bUseControllerDesiredRotation = false;
 		Character->bUseControllerRotationYaw = false;
-		CharacterMovement->RotationRate = FRotator(0.f, ProneRotationRateYaw, 0.f);
+		float CurrentYaw = CharacterMovement->RotationRate.Yaw;
+		float TargetYaw = ProneRotationRateYaw;
+		CharacterMovement->RotationRate = FRotator(
+			0.f,
+			FMath::FInterpTo(CurrentYaw < 0.f ? 360.f : CurrentYaw, TargetYaw, DeltaTime, 8.f),
+			0.f
+		);
+		TickProneAlignment(DeltaTime);
+
 	}
 }
 
@@ -92,8 +99,136 @@ void ULocomotionComponent::TickStanceTransition(float DeltaTime)
 
 	// 3. FINAL COORDINATE SYNC
 	// Anchors mesh origin directly to the bottom of the capsule across all layout positions
-	float FinalMeshZ = -CapsuleComponent->GetUnscaledCapsuleHalfHeight() + CurrentProneIdleOffset;
+	//float FinalMeshZ = -CapsuleComponent->GetUnscaledCapsuleHalfHeight() + CurrentProneIdleOffset;
+	float FinalMeshZ = -CapsuleComponent->GetUnscaledCapsuleHalfHeight() + CurrentProneIdleOffset + FootPlacementRootOffset;
 	Mesh->SetRelativeLocation(FVector(Mesh->GetRelativeLocation().X, Mesh->GetRelativeLocation().Y, FinalMeshZ));
+}
+
+void ULocomotionComponent::TickProneLedgeCheck(float DeltaTime)
+{
+	if (Stance != Enum_Stance::Prone)
+	{
+		ProneSettleTimer = 0.f; // reset when leaving prone
+		return;
+	}
+	if (MovementMode == Enum_MovementMode::Ragdoll) return;
+
+	// Accumulate settle time
+	ProneSettleTimer += DeltaTime;
+	if (ProneSettleTimer < ProneSettleDelay) return; // not settled yet
+
+	if (CharacterMovement->Velocity.Size2D() < 5.f) return;
+
+	// Probe from chest height forward in movement direction
+	FVector MoveDir = CharacterMovement->Velocity.GetSafeNormal2D();
+	if (MoveDir.IsNearlyZero()) return;
+
+	FVector ChestLocation = Character->GetActorLocation()
+		+ MoveDir * LedgeCheckDistance
+		+ FVector(0.f, 0.f, 10.f); // slight upward offset from actor origin
+
+	FVector TraceEnd = ChestLocation - FVector(0.f, 0.f, LedgeCheckDepth);
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Character);
+
+	bool bGroundAhead = Character->GetWorld()->LineTraceSingleByChannel(
+		Hit, ChestLocation, TraceEnd, ECC_Visibility, Params);
+
+	if (!bGroundAhead)
+	{
+		StartRagdoll();
+	}
+}
+
+void ULocomotionComponent::TickProneAlignment(float DeltaTime)
+{
+	if (Stance != Enum_Stance::Prone)
+	{
+		CurrentMeshSlopeOffset = FMath::RInterpTo(
+			CurrentMeshSlopeOffset, FRotator::ZeroRotator, DeltaTime, SlopeAlignmentInterpSpeed
+		);
+		ProneSlopePitch = CurrentMeshSlopeOffset.Pitch;
+		ProneSlopeRoll = CurrentMeshSlopeOffset.Roll;
+		return;
+	}
+
+	FVector TraceStart = Character->GetActorLocation();
+	FVector TraceEnd = TraceStart - FVector(0.f, 0.f, SlopeTraceDistance);
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Character);
+
+	FRotator TargetSlopeRot = FRotator::ZeroRotator;
+	if (Character->GetWorld()->LineTraceSingleByChannel(
+		Hit, TraceStart, TraceEnd, ECC_Visibility, Params))
+	{
+		FVector FloorNormal = Hit.ImpactNormal;
+
+		// Use movement direction when moving, actor forward when idle
+		bool bMoving = CharacterMovement->Velocity.Size2D() > 10.f;
+		FVector ReferenceForward = bMoving
+			? CharacterMovement->Velocity.GetSafeNormal2D()
+			: Character->GetActorForwardVector();
+
+		FVector RightVec = FVector::CrossProduct(FloorNormal, ReferenceForward).GetSafeNormal();
+		FVector AdjForward = FVector::CrossProduct(RightVec, FloorNormal).GetSafeNormal();
+
+		FMatrix AlignMatrix(AdjForward, RightVec, FloorNormal, FVector::ZeroVector);
+		FRotator AlignRot = AlignMatrix.Rotator();
+
+		TargetSlopeRot = FRotator(AlignRot.Pitch, 0.f, AlignRot.Roll);
+	}
+
+	CurrentMeshSlopeOffset = FMath::RInterpTo(
+		CurrentMeshSlopeOffset, TargetSlopeRot, DeltaTime, SlopeAlignmentInterpSpeed
+	);
+
+	ProneSlopePitch = CurrentMeshSlopeOffset.Pitch;
+	ProneSlopeRoll = CurrentMeshSlopeOffset.Roll;
+	// No SetRelativeRotation — ABP reads these values
+
+}
+
+void ULocomotionComponent::TickFloorDetection(float DeltaTime)
+{
+	FVector Start = Character->GetActorLocation();
+	FVector End = Start - FVector(0.f, 0.f, 50.f);
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Character);
+
+	if (Character->GetWorld()->LineTraceSingleByChannel(
+		Hit, Start, End, ECC_Visibility, Params))
+	{
+		float RawAngle = FMath::RadiansToDegrees(
+			FMath::Acos(FVector::DotProduct(Hit.ImpactNormal, FVector::UpVector))
+		);
+
+		// Smooth the angle so pelvis doesn't snap on terrain transitions
+		FloorAngle = FMath::FInterpTo(FloorAngle, RawAngle, DeltaTime, 6.f);
+	}
+	else
+	{
+		FloorAngle = FMath::FInterpTo(FloorAngle, 0.f, DeltaTime, 6.f);
+	}
+
+	// Flat(0°) → MaxOffset=250, Steep(30°+) → MaxOffset=0
+	DynamicPelvisMaxOffset = FMath::GetMappedRangeValueClamped(
+		FVector2D(0.f, 30.f),
+		FVector2D(250.f, 0.f),
+		FloorAngle
+	);
+
+	// Flat → normal stiffness, Steep → high stiffness for snappy small corrections
+	DynamicPelvisStiffness = FMath::GetMappedRangeValueClamped(
+		FVector2D(0.f, 30.f),
+		FVector2D(100.f, 400.f),
+		FloorAngle
+	);
 }
 
 // ─── QUERIES ───

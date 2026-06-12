@@ -121,8 +121,14 @@ private:
 
 	// Smooth Stance Transition System Parameters
 	void TickStanceTransition(float DeltaTime);
+	void TickProneAlignment(float DeltaTime);
 	float TargetCapsuleHalfHeight = 0.f;
 	float CurrentProneIdleOffset = 0.f;
+
+	bool bLedgeCheckPending = false;
+
+	void TickProneLedgeCheck(float DeltaTime);
+	void TickFloorDetection(float DeltaTime);
 
 protected:
 	// ─── RAGDOLL PARAMETERS ───
@@ -209,8 +215,47 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Half Height")
 	float ProneIdleMeshZOffset = -22.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Half Height")
+	float FootPlacementRootOffset = -4.f; // Tune this — typically -2 to -6
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
+	float SlopeAlignmentInterpSpeed = 8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
+	float SlopeTraceDistance = 50.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
+	float LedgeCheckDistance = 40.f;   // How far forward to probe
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
+	float LedgeCheckDepth = 80.f;      // How far down to look for ground
+
+	UPROPERTY(BlueprintReadOnly, Category = "Prone")
+	float ProneSlopePitch = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Prone")
+	float ProneSlopeRoll = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Prone")
+	float FloorAngle = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Prone")
+	float DynamicPelvisMaxOffset = 250.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Prone")
+	float DynamicPelvisStiffness = 100.f;
+
+	float ProneSettleTimer = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
+	float ProneSettleDelay = 0.4f;
+
+	
+
+	FRotator CurrentMeshSlopeOffset = FRotator::ZeroRotator;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation")
-	float ProneRotationRateYaw = 110.f; // ◄ Controlled turning rate parameter for prone movement
+	float ProneRotationRateYaw = 35.f; // ◄ Controlled turning rate parameter for prone movement
 
 public:
 	// Dynamic Tracking Variables
