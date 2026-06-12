@@ -1,4 +1,5 @@
 ﻿#pragma once
+
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Character.h"
@@ -7,73 +8,69 @@
 #include "Components/CapsuleComponent.h"
 #include "LocomotionComponent.generated.h"
 
-// ── Enumerations ──────────────────────────────────────────────────────────────
-
+// ─── ENUMERATIONS MATRIX ───
 UENUM(BlueprintType)
-enum class Enum_MovementMode : uint8
-{
-	OnGround UMETA(DisplayName = "On Ground"),
-	InAir    UMETA(DisplayName = "In Air"),
-	Ragdoll  UMETA(DisplayName = "Ragdoll")
+enum class Enum_MovementMode : uint8 {
+	OnGround      UMETA(DisplayName = "On Ground"),
+	InAir         UMETA(DisplayName = "In Air"),
+	Ragdoll       UMETA(DisplayName = "Ragdoll")
 };
 
 UENUM(BlueprintType)
-enum class Enum_MovementState : uint8
-{
-	Idle   UMETA(DisplayName = "Idle"),
-	Moving UMETA(DisplayName = "Moving")
+enum class Enum_MovementState : uint8 {
+	Idle          UMETA(DisplayName = "Idle"),
+	Moving        UMETA(DisplayName = "Moving")
 };
 
 UENUM(BlueprintType)
-enum class Enum_CharacterState : uint8
-{
-	Relaxed UMETA(DisplayName = "Relaxed"),
-	Stealth UMETA(DisplayName = "Stealth"),
-	Combat  UMETA(DisplayName = "Combat")
+enum class Enum_CharacterState : uint8 {
+	Relaxed       UMETA(DisplayName = "Relaxed"),
+	Stealth       UMETA(DisplayName = "Stealth"),
+	Combat        UMETA(DisplayName = "Combat")
 };
 
 UENUM(BlueprintType)
-enum class Enum_Stance : uint8
-{
-	Stand  UMETA(DisplayName = "Stand"),
-	Crouch UMETA(DisplayName = "Crouch"),
-	Prone  UMETA(DisplayName = "Prone")
+enum class Enum_Stance : uint8 {
+	Stand         UMETA(DisplayName = "Stand"),
+	Crouch        UMETA(DisplayName = "Crouch"),
+	Prone         UMETA(DisplayName = "Prone")
 };
 
 UENUM(BlueprintType)
-enum class Enum_Gait : uint8
-{
-	Walk UMETA(DisplayName = "Walk"),
-	Jog  UMETA(DisplayName = "Jog"),
-	Run  UMETA(DisplayName = "Run")
+enum class Enum_Gait : uint8 {
+	Walk          UMETA(DisplayName = "Walk"),
+	Jog           UMETA(DisplayName = "Jog"),
+	Run           UMETA(DisplayName = "Run")
 };
 
-// ── Input State Struct ────────────────────────────────────────────────────────
+UENUM(BlueprintType)
+enum class Enum_RotationMode : uint8 {
+	VelocityDirection UMETA(DisplayName = "Velocity Direction"),
+	LookingDirection  UMETA(DisplayName = "Looking Direction")
+};
 
+// ─── INPUT TRACKING STATE STRUCT ───
 USTRUCT(BlueprintType)
 struct FStruct_CharacterInputState
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Locomotion | Input")
 	bool WantsToRun = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Locomotion | Input")
 	bool WantsToWalk = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Locomotion | Input")
 	bool WantsToStrafe = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Locomotion | Input")
 	bool WantsToAim = false;
 };
 
-// ── Delegates ─────────────────────────────────────────────────────────────────
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateMovement);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateRotation);
-
-// ── Component ─────────────────────────────────────────────────────────────────
+// ─── SYSTEM MULTI-CAST DELEGATES ───
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateMovementSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateRotationSignature);
 
 UCLASS(ClassGroup = (Custom), Blueprintable, BlueprintType, meta = (BlueprintSpawnableComponent))
 class LOCOMOTIONSYSTEM_API ULocomotionComponent : public UActorComponent
@@ -89,26 +86,16 @@ protected:
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	// ── Private ───────────────────────────────────────────────────────────────────
 private:
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	ACharacter* Character = nullptr;
+	// Core Cached Native Pointers
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) ACharacter* Character = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) UCharacterMovementComponent* CharacterMovement = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) UCapsuleComponent* CapsuleComponent = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) USkeletalMeshComponent* Mesh = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) UAnimInstance* MainAnimInstance = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) bool bIsValidCharacter = false;
 
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	UCharacterMovementComponent* CharacterMovement = nullptr;
-
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	UCapsuleComponent* CapsuleComponent = nullptr;
-
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	USkeletalMeshComponent* Mesh = nullptr;
-
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	UAnimInstance* MainAnimInstance = nullptr;
-
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	bool bIsValidCharacter = false;
-
+	// Internal Computation Subroutines
 	void SetReferences();
 	bool HasMovementInputVector();
 	bool CanSprint() const;
@@ -118,199 +105,88 @@ private:
 	float CalculateGroundFriction();
 	float CalculateMaxSpeed();
 	float CalculateMaxSpeedCrouched();
-	float CalculateMaxSpeedProne();
+	float CalculateMaxSpeedProned();
 	Enum_Gait GetDesiredGait();
 
-	// Stance transition — smooth capsule height interpolation
+	// Smooth Dimension Transition Core
 	void TickStanceTransition(float DeltaTime);
-	float TargetCapsuleHalfHeight = 88.f;
-	float ProneRotationRateYaw = 40.f;
-	float CurrentProneRotationRate = 360.f;
+	float TargetCapsuleHalfHeight = 0.f;
 
-	// ── Protected Config ──────────────────────────────────────────────────────────
 protected:
-	// Ragdoll data — kept as BlueprintImplementableEvent contract only
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	UAnimMontage* RagdollGetUpBack = nullptr;
+	// ─── RAGDOLL STORAGE PARAMETERS ───
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimMontage* RagdollGetUpBack = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimMontage* RagdollGetUpFront = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") FName PelvisBone = "pelvis";
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") FName SnapshotName = "RagdollPose";
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") bool bRagdollOnGround = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") bool bRagdollFaceUp = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") FVector LastRagdollVelocity = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	UAnimMontage* RagdollGetUpFront = nullptr;
+	// ─── EVALUATION CURVES ───
+	UPROPERTY(EditAnywhere, Category = "Curves") UCurveFloat* StrafeSpeedMapCurve = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	FName PelvisBone = "pelvis";
+	// ─── BALANCING CONFIGURATION TUNERS ───
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector RunSpeed = FVector(500.f, 500.f, 500.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector JogSpeed = FVector(375.f, 375.f, 375.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector CrouchSpeed = FVector(225.f, 200.f, 180.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector ProneSpeed = FVector(80.f, 60.f, 50.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector WalkSpeedRelaxed = FVector(165.f, 165.f, 165.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector LandVelocity = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	FName SnapshotName = "RagdollPose";
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float WalkAcceleration = 800.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float RunAcceleration = 300.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float BrakingDeceleration = 500.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	bool bRagdollOnGround = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float WalkGroundFriction = 5.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float RunGroundFriction = 3.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float ProneGroundFriction = 12.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	bool bRagdollFaceUp = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float StandCapsuleHalfHeight = 88.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float CrouchCapsuleHalfHeight = 40.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float ProneCapsuleHalfHeight = 30.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float StanceTransitionSpeed = 10.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	FVector LastRagdollVelocity = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneRotationRateYaw = 35.f;
 
-	// Curves
-	UPROPERTY(EditAnywhere, Category = "Curves")
-	UCurveFloat* StrafeSpeedMapCurve = nullptr;
-
-	// Speed
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector RunSpeed = FVector(500.f, 500.f, 500.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector JogSpeed = FVector(375.f, 375.f, 375.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector CrouchSpeed = FVector(225.f, 200.f, 180.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector ProneSpeed = FVector(80.f, 80.f, 80.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector WalkSpeedRelaxed = FVector(165.f, 165.f, 165.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed")
-	FVector LandVelocity = FVector::ZeroVector;
-
-	// Acceleration / Friction
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration")
-	float WalkAcceleration = 800.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration")
-	float RunAcceleration = 300.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration")
-	float BrakingDeceleration = 500.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction")
-	float WalkGroundFriction = 5.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction")
-	float RunGroundFriction = 3.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction")
-	float ProneGroundFriction = 10.f;
-
-	// Capsule heights
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Capsule")
-	float StandCapsuleHalfHeight = 88.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Capsule")
-	float CrouchCapsuleHalfHeight = 40.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Capsule")
-	float ProneCapsuleHalfHeight = 30.f;
-
-	// How fast the capsule interpolates between heights
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Capsule")
-	float StanceTransitionSpeed = 10.f;
-
-	// Prone rotation — controlled turn rate so prone doesn't snap
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
-	float ProneRotationRate = 40.f;
-
-	// How fast rotation rate interpolates into/out of prone value
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Prone")
-	float ProneRotationInterpSpeed = 5.f;
-
-	// ── Public ────────────────────────────────────────────────────────────────────
 public:
-	// States
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	FStruct_CharacterInputState CharacterInputState;
+	// Dynamic Runtime States Tracking
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") FStruct_CharacterInputState CharacterInputState;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") bool bJustLanded = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_MovementState MovementState = Enum_MovementState::Idle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_Stance Stance = Enum_Stance::Stand;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_Gait Gait = Enum_Gait::Jog;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	bool bJustLanded = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") float FlailRate = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimSequence* FlailSequence = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
+	// Dispatcher Event Triggers
+	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnUpdateMovementSignature OnUpdateMovement;
+	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnUpdateRotationSignature OnUpdateRotation;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	Enum_MovementState MovementState = Enum_MovementState::Idle;
+	// ─── PUBLIC BLUEPRINT HANDSHAKES ───
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll") void StartRagdoll();
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll") void StopRagdoll();
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll") void UpdateRagdoll();
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll") void SetActorLocationDuringRagdoll();
+	UFUNCTION(BlueprintCallable, BlueprintPure, BlueprintImplementableEvent, Category = "Ragdoll") UAnimMontage* GetRagdollGetUpMontage();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "States") bool IsSprinting();
+	UFUNCTION(BlueprintCallable, Category = "Update Data") void UpdateGait();
+	UFUNCTION(BlueprintCallable, Category = "Update Data") void UpdateDynamicMovementSettings();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	Enum_Stance Stance = Enum_Stance::Stand;
+	UFUNCTION(BlueprintCallable, Category = "Set State") void SetStance(Enum_Stance NewStance);
+	UFUNCTION(BlueprintCallable, Category = "Set State") void SetMovementMode(Enum_MovementMode NewMovementMode);
+	UFUNCTION(BlueprintCallable, Category = "Set State") void SetCharacterState(Enum_CharacterState NewCharacterState);
+	UFUNCTION(BlueprintCallable, Category = "Set State") void SetProne(bool bWantsToProne);
+	UFUNCTION(BlueprintPure, Category = "Queries") bool CanStandFromProne() const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States")
-	Enum_Gait Gait = Enum_Gait::Jog;
-
-	// Ragdoll runtime
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	float FlailRate = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll")
-	UAnimSequence* FlailSequence = nullptr;
-
-	// Delegates
-	UPROPERTY(VisibleAnywhere, BlueprintAssignable, Category = "Delegates")
-	FOnUpdateMovement OnUpdateMovement;
-
-	UPROPERTY(VisibleAnywhere, BlueprintAssignable, Category = "Delegates")
-	FOnUpdateRotation OnUpdateRotation;
-
-	// Ragdoll — implemented entirely in Blueprint
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll")
-	void StartRagdoll();
-
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll")
-	void StopRagdoll();
-
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll")
-	void UpdateRagdoll();
-
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll")
-	void SetActorLocationDuringRagdoll();
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, BlueprintImplementableEvent, Category = "Ragdoll")
-	UAnimMontage* GetRagdollGetUpMontage();
-
-	// Update
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "States")
-	bool IsSprinting();
-
-	UFUNCTION(BlueprintCallable, Category = "Update Data")
-	void UpdateGait();
-
-	UFUNCTION(BlueprintCallable, Category = "Update Data")
-	void UpdateDynamicMovementSettings();
-
-	// Set state
-	UFUNCTION(BlueprintCallable, Category = "Set State")
-	void SetStance(Enum_Stance NewStance);
-
-	UFUNCTION(BlueprintCallable, Category = "Set State")
-	void SetProne(bool bWantsProne);
-
-	UFUNCTION(BlueprintPure, Category = "Set State")
-	bool CanStandFromProne() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Set State")
-	void SetMovementMode(Enum_MovementMode NewMovementMode);
-
-	UFUNCTION(BlueprintCallable, Category = "Set State")
-	void SetCharacterState(Enum_CharacterState NewCharacterState);
-
-	// Input hooks
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input")
-	void WantsToRun(bool bStarted);
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input")
-	void WantsToAim(bool bStarted);
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input")
-	void WantsToWalk(bool bStarted);
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input")
-	void WantsToStrafe();
+	// ─── NATIVE INPUT EXECUTION HOOKS ───
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToRun(bool bStarted);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToAim(bool bStarted);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToWalk(bool bStarted);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToStrafe();
 };

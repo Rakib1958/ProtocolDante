@@ -63,15 +63,6 @@ void ABaseCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8
 		LocomotionComponent->SetMovementMode(Enum_MovementMode::OnGround);
 		break;
 	case EMovementMode::MOVE_Falling:
-		/*switch (LocomotionComponent->Stance)
-		{
-		case Enum_Stance::Prone:
-			LocomotionComponent->StartRagdoll();
-			break;
-		default:
-			LocomotionComponent->SetMovementMode(Enum_MovementMode::InAir);
-			break;
-		}*/
 		LocomotionComponent->SetMovementMode(Enum_MovementMode::InAir);
 		break;
 	case EMovementMode::MOVE_NavWalking:
