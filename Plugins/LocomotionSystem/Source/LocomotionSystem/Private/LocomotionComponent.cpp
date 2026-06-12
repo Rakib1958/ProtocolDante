@@ -41,7 +41,10 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			FMath::FInterpTo(CurrentYaw < 0.f ? 360.f : CurrentYaw, TargetYaw, DeltaTime, 8.f),
 			0.f
 		);
-		TickProneAlignment(DeltaTime);
+		if (!CurrentMeshSlopeOffset.IsNearlyZero(0.1f))
+		{
+			TickProneAlignment(DeltaTime);
+		}
 
 	}
 }
@@ -146,39 +149,49 @@ void ULocomotionComponent::TickProneAlignment(float DeltaTime)
 {
 	if (Stance != Enum_Stance::Prone)
 	{
-		CurrentMeshSlopeOffset = FMath::RInterpTo(
-			CurrentMeshSlopeOffset, FRotator::ZeroRotator, DeltaTime, SlopeAlignmentInterpSpeed
-		);
-		ProneSlopePitch = CurrentMeshSlopeOffset.Pitch;
-		ProneSlopeRoll = CurrentMeshSlopeOffset.Roll;
+		// Smoothly reset pitch/roll when leaving prone
+		if (!CurrentMeshSlopeOffset.IsNearlyZero(0.1f))
+		{
+			CurrentMeshSlopeOffset = FMath::RInterpTo(
+				CurrentMeshSlopeOffset, FRotator::ZeroRotator, DeltaTime, SlopeAlignmentInterpSpeed
+			);
+			FRotator Current = Mesh->GetRelativeRotation();
+			Mesh->SetRelativeRotation(FRotator(
+				CurrentMeshSlopeOffset.Pitch,
+				Current.Yaw,
+				CurrentMeshSlopeOffset.Roll
+			));
+		}
 		return;
 	}
 
-	FVector TraceStart = Character->GetActorLocation();
-	FVector TraceEnd = TraceStart - FVector(0.f, 0.f, SlopeTraceDistance);
+	FVector Start = Character->GetActorLocation();
+	FVector End = Start - FVector(0.f, 0.f, SlopeTraceDistance);
 
 	FHitResult Hit;
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(Character);
 
 	FRotator TargetSlopeRot = FRotator::ZeroRotator;
+
 	if (Character->GetWorld()->LineTraceSingleByChannel(
-		Hit, TraceStart, TraceEnd, ECC_Visibility, Params))
+		Hit, Start, End, ECC_Visibility, Params))
 	{
 		FVector FloorNormal = Hit.ImpactNormal;
 
-		// Use movement direction when moving, actor forward when idle
+		// Use velocity direction when moving, actor forward when idle
 		bool bMoving = CharacterMovement->Velocity.Size2D() > 10.f;
-		FVector ReferenceForward = bMoving
+		FVector RefForward = bMoving
 			? CharacterMovement->Velocity.GetSafeNormal2D()
 			: Character->GetActorForwardVector();
 
-		FVector RightVec = FVector::CrossProduct(FloorNormal, ReferenceForward).GetSafeNormal();
-		FVector AdjForward = FVector::CrossProduct(RightVec, FloorNormal).GetSafeNormal();
+		FVector Right = FVector::CrossProduct(FloorNormal, RefForward).GetSafeNormal();
+		FVector AdjForward = FVector::CrossProduct(Right, FloorNormal).GetSafeNormal();
 
-		FMatrix AlignMatrix(AdjForward, RightVec, FloorNormal, FVector::ZeroVector);
+		FMatrix AlignMatrix(AdjForward, Right, FloorNormal, FVector::ZeroVector);
 		FRotator AlignRot = AlignMatrix.Rotator();
 
+		// Only take pitch and roll
 		TargetSlopeRot = FRotator(AlignRot.Pitch, 0.f, AlignRot.Roll);
 	}
 
@@ -186,10 +199,13 @@ void ULocomotionComponent::TickProneAlignment(float DeltaTime)
 		CurrentMeshSlopeOffset, TargetSlopeRot, DeltaTime, SlopeAlignmentInterpSpeed
 	);
 
+	// Just expose — Transform Modify Bone in ABP reads these
 	ProneSlopePitch = CurrentMeshSlopeOffset.Pitch;
 	ProneSlopeRoll = CurrentMeshSlopeOffset.Roll;
-	// No SetRelativeRotation — ABP reads these values
-
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Hello")));
+	}
 }
 
 void ULocomotionComponent::TickFloorDetection(float DeltaTime)
