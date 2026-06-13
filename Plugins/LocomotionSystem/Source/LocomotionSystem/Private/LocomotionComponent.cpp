@@ -22,25 +22,53 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	if (!bIsValidCharacter) return;
 	if (MovementMode == Enum_MovementMode::Ragdoll) return;
 
-	// 1. Process capsule height scaling loops universally across ALL changes
+	// 1. Process capsule dimension updates smoothly across frame boundaries
 	TickStanceTransition(DeltaTime);
 
-	// 2. Execute blueprint delegate bindings for player orientation rules
+	// 2. Predictive Ledge Checker: Triggers instant ragdoll falls if crawl limits are exceeded
+	if (Stance == Enum_Stance::Prone)
+	{
+		CheckPredictiveProneLedgeFall();
+	}
+
+	// 3. Fire parallel design-layer blueprint delegates
 	OnUpdateMovement.Broadcast();
 	OnUpdateRotation.Broadcast();
 
-	// ─── CONTROLLED PRONE ROTATION MATRIX OVERRIDE ───
+	// ─── STABLE VELOCITY ROTATION RATE MAPPING ───
 	if (Stance == Enum_Stance::Prone)
 	{
+		// Force standard velocity orientation rules cleanly
+		CharacterMovement->bOrientRotationToMovement = true;
+		CharacterMovement->bUseControllerDesiredRotation = false;
 		Character->bUseControllerRotationYaw = false;
-		float CurrentYaw = CharacterMovement->RotationRate.Yaw;
-		float TargetYaw = ProneRotationRateYaw;
 
-		CharacterMovement->RotationRate = FRotator(
-			0.f,
-			FMath::FInterpTo(CurrentYaw < 0.f ? 360.f : CurrentYaw, TargetYaw, DeltaTime, 8.f),
-			0.f
-		);
+		// Default to our highly responsive tracking limit baseline
+		float ActiveRotationRate = ProneMaxRotationRateYaw;
+
+		// Apply dynamic damping curve ONLY if the player is actively moving and pushing a stick input
+		if (CharacterMovement->Velocity.Size2D() > 15.f && HasMovementInputVector())
+		{
+			FVector InputDirection = Character->GetPendingMovementInputVector().GetSafeNormal2D();
+			FRotator TargetRotation = UKismetMathLibrary::MakeRotFromX(InputDirection);
+
+			// Measure the explicit absolute angular deviation between his heading and his intent
+			float DeltaYaw = FMath::Abs(UKismetMathLibrary::NormalizedDeltaRotator(TargetRotation, Character->GetActorRotation()).Yaw);
+
+			if (DeltaYaw > 0.1f)
+			{
+				// Smoothly scale the turning speed down as the steering angle gets steeper (0° to 90°)
+				ActiveRotationRate = UKismetMathLibrary::MapRangeClamped(
+					DeltaYaw,
+					0.f, 90.f,
+					ProneMaxRotationRateYaw,
+					ProneMinRotationRateYaw
+				);
+			}
+		}
+
+		// Ship the calculated smooth dampening value straight to the physics layer
+		CharacterMovement->RotationRate = FRotator(0.f, ActiveRotationRate, 0.f);
 	}
 }
 
@@ -58,11 +86,39 @@ void ULocomotionComponent::SetReferences()
 		{
 			bIsValidCharacter = true;
 
-			// Establish secure initial bounding box defaults
 			CapsuleComponent->SetCapsuleHalfHeight(StandCapsuleHalfHeight);
 			CharacterMovement->CrouchedHalfHeight = CrouchCapsuleHalfHeight;
 			TargetCapsuleHalfHeight = StandCapsuleHalfHeight;
 		}
+	}
+}
+
+// ─── HIGH RESOLUTION EARLY FALL RAYCAST TRACKER ───
+void ULocomotionComponent::CheckPredictiveProneLedgeFall()
+{
+	// Only calculate early drop-offs if Dante is actively crawling forward
+	if (CharacterMovement->Velocity.Size2D() < 15.f) return;
+
+	FVector CoreLocation = Character->GetActorLocation();
+	FVector MoveDirection = CharacterMovement->Velocity.GetSafeNormal2D();
+
+	// Project trace origin 45 units forward from capsule center to match his physical head line position
+	FVector TraceStart = CoreLocation + (MoveDirection * 45.f);
+	FVector TraceEnd = TraceStart - FVector(0.f, 0.f, ProneCapsuleHalfHeight + 35.f);
+
+	FHitResult LedgeHit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Character);
+
+	// Perform visibility raycast channel check down past floor support boundaries
+	bool bGroundExistsAhead = Character->GetWorld()->LineTraceSingleByChannel(
+		LedgeHit, TraceStart, TraceEnd, ECC_Visibility, Params
+	);
+
+	// If head/torso extends past support boundaries over open air, execute ragdoll collapse instantly
+	if (!bGroundExistsAhead)
+	{
+		SetMovementMode(Enum_MovementMode::Ragdoll);
 	}
 }
 
@@ -71,10 +127,8 @@ void ULocomotionComponent::TickStanceTransition(float DeltaTime)
 {
 	float Current = CapsuleComponent->GetUnscaledCapsuleHalfHeight();
 
-	// Check for close completion proximity
 	if (FMath::IsNearlyEqual(Current, TargetCapsuleHalfHeight, 0.01f))
 	{
-		// Enforce an absolute final snap to clear microscopic floating location math drift errors
 		CapsuleComponent->SetCapsuleHalfHeight(TargetCapsuleHalfHeight, true);
 
 		FVector MeshRelLoc = Mesh->GetRelativeLocation();
@@ -86,14 +140,12 @@ void ULocomotionComponent::TickStanceTransition(float DeltaTime)
 	float NewHeight = FMath::FInterpTo(Current, TargetCapsuleHalfHeight, DeltaTime, StanceTransitionSpeed);
 	float HeightDelta = Current - NewHeight;
 
-	// Shift actor down along the delta path to keep feet securely pinned to the floor plane
 	FVector Loc = Character->GetActorLocation();
 	Loc.Z -= HeightDelta;
-	Character->SetActorLocation(Loc, false); // bSweep = false protects parallel Animation IK threads from twitching
+	Character->SetActorLocation(Loc, false); // bSweep = false protects animation solvers from twitching
 
 	CapsuleComponent->SetCapsuleHalfHeight(NewHeight, true);
 
-	// Dynamically update relative asset translation to match capsule base
 	FVector MeshRelLoc = Mesh->GetRelativeLocation();
 	MeshRelLoc.Z = -NewHeight;
 	Mesh->SetRelativeLocation(MeshRelLoc);
@@ -124,7 +176,6 @@ bool ULocomotionComponent::CanStandFromProne() const
 {
 	if (!bIsValidCharacter) return false;
 
-	// Measure geometric clearance room precisely up to the Crouch Capsule height ceiling boundary
 	float TraceDistance = CrouchCapsuleHalfHeight - ProneCapsuleHalfHeight;
 	FVector Start = Character->GetActorLocation();
 	FVector End = Start + FVector(0.f, 0.f, TraceDistance);
@@ -160,7 +211,6 @@ void ULocomotionComponent::SetStance(Enum_Stance NewStance)
 	if (Stance == NewStance) return;
 	Stance = NewStance;
 
-	// Sync internal intent settings to clear double-press desync loops natively
 	if (CharacterMovement)
 	{
 		CharacterMovement->bWantsToCrouch = (Stance == Enum_Stance::Crouch);
@@ -178,11 +228,20 @@ void ULocomotionComponent::SetStance(Enum_Stance NewStance)
 
 void ULocomotionComponent::SetMovementMode(Enum_MovementMode NewMovementMode)
 {
-	if (MovementMode != NewMovementMode)
+	if (MovementMode == NewMovementMode) return;
+
+	// Intercept core engine fall modes: If falling or early-raycast triggered while prone, route to Ragdoll instantly
+	if ((NewMovementMode == Enum_MovementMode::InAir || NewMovementMode == Enum_MovementMode::Ragdoll) && Stance == Enum_Stance::Prone)
 	{
-		MovementMode = NewMovementMode;
+		MovementMode = Enum_MovementMode::Ragdoll;
 		UpdateDynamicMovementSettings();
+
+		StartRagdoll(); // Invokes Blueprint system to decouple skeletal bounds into full simulation
+		return;
 	}
+
+	MovementMode = NewMovementMode;
+	UpdateDynamicMovementSettings();
 }
 
 void ULocomotionComponent::SetCharacterState(Enum_CharacterState NewCharacterState)
@@ -197,21 +256,15 @@ void ULocomotionComponent::SetProne(bool bWantsToProne)
 	if (bWantsToProne)
 	{
 		SetStance(Enum_Stance::Prone);
-		CharacterInputState.WantsToStrafe = true;
-		CharacterMovement->bCanWalkOffLedges = false;
-		CharacterMovement->bCanWalkOffLedgesWhenCrouching = false;
 	}
 	else
 	{
 		if (!CanStandFromProne()) return;
 		SetStance(Enum_Stance::Crouch);
-		CharacterInputState.WantsToStrafe = false;
-		CharacterMovement->bCanWalkOffLedges = false;
-		CharacterMovement->bCanWalkOffLedgesWhenCrouching = false;
 	}
 }
 
-// ─── MATHEMATICAL MATH CALCULATORS ───
+// ─── MATHEMATICAL SPEED MAPS ───
 float ULocomotionComponent::CalculateMaxSpeedProned()
 {
 	if (!IsValid(StrafeSpeedMapCurve)) return ProneSpeed.X;

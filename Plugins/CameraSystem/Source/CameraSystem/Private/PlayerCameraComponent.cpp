@@ -79,6 +79,68 @@ void UPlayerCameraComponent::EvaluateAndInterpShoulderOffset(float DeltaTime)
 	// Shoulder only ever shifts socket offset — pivot and arm length untouched
 }
 
+
+void UPlayerCameraComponent::ApplyToSpringArm()
+{
+	// Combine all layers
+	float FinalArmLength = FMath::Max(
+		CurrentBase.TargetArmLength
+		+ CurrentStanceOffset.ArmLengthDelta
+		- CollisionArmCorrection
+		- FallArmReduction,
+		0.f
+	);
+
+	FVector FinalSocketOffset = CurrentBase.SocketOffset
+		+ CurrentStanceOffset.SocketOffsetDelta
+		+ CurrentShoulderOffset.SocketOffsetDelta;
+
+	// Collision pushes socket toward center (reduces Y magnitude)
+	float SocketYSign = FMath::Sign(FinalSocketOffset.Y);
+	FinalSocketOffset.Y = FMath::Max(
+		FMath::Abs(FinalSocketOffset.Y) - CollisionOffsetCorrection, 0.f
+	) * SocketYSign;
+
+	FVector FinalPivot = CurrentBase.PivotOffset + CurrentStanceOffset.PivotOffsetDelta;
+
+	// Z smoothing only adds a correction during stance transitions
+	// so capsule shrink/grow doesn't snap the camera
+	if (bIsStanceTransitioning)
+	{
+		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+		if (IsValid(Capsule))
+		{
+			float ActualCapsuleZ = Capsule->GetScaledCapsuleHalfHeight();
+			float ZCorrection = SmoothedPivotZ - ActualCapsuleZ;  // delta from target
+			FinalPivot.Z += ZCorrection;
+		}
+	}
+
+	//float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta;
+	float FinalFOV = CurrentBase.FieldOfView
+		+ CurrentStanceOffset.FOVDelta
+		+ FallFOVReduction;  // additive, negative = zoom in
+
+	// Write to spring arm
+	SpringArmRef->TargetArmLength = FinalArmLength;
+	SpringArmRef->SocketOffset = FinalSocketOffset;
+	SpringArmRef->SetRelativeLocation(FinalPivot);
+	SpringArmRef->CameraLagSpeed = CurrentBase.LagSpeed;
+	SpringArmRef->CameraRotationLagSpeed = CurrentBase.RotationLagSpeed;
+	CameraRef->FieldOfView = FinalFOV;
+}
+
+// ── Initialization ────────────────────────────────────────────────────────────
+
+void UPlayerCameraComponent::SetReference()
+{
+	Character = Cast<ACharacter>(GetOwner());
+	if (IsValid(Character))
+	{
+		CharacterMovement = Character->GetCharacterMovement();
+	}
+}
+
 void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
 {
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
@@ -170,68 +232,6 @@ void UPlayerCameraComponent::UpdateFallFeel(float DeltaTime)
 		FallArmReduction, TargetArmReduction, DeltaTime, 10.f
 	);
 }
-
-void UPlayerCameraComponent::ApplyToSpringArm()
-{
-	// Combine all layers
-	float FinalArmLength = FMath::Max(
-		CurrentBase.TargetArmLength
-		+ CurrentStanceOffset.ArmLengthDelta
-		- CollisionArmCorrection
-		- FallArmReduction,
-		0.f
-	);
-
-	FVector FinalSocketOffset = CurrentBase.SocketOffset
-		+ CurrentStanceOffset.SocketOffsetDelta
-		+ CurrentShoulderOffset.SocketOffsetDelta;
-
-	// Collision pushes socket toward center (reduces Y magnitude)
-	float SocketYSign = FMath::Sign(FinalSocketOffset.Y);
-	FinalSocketOffset.Y = FMath::Max(
-		FMath::Abs(FinalSocketOffset.Y) - CollisionOffsetCorrection, 0.f
-	) * SocketYSign;
-
-	FVector FinalPivot = CurrentBase.PivotOffset + CurrentStanceOffset.PivotOffsetDelta;
-
-	// Z smoothing only adds a correction during stance transitions
-	// so capsule shrink/grow doesn't snap the camera
-	if (bIsStanceTransitioning)
-	{
-		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
-		if (IsValid(Capsule))
-		{
-			float ActualCapsuleZ = Capsule->GetScaledCapsuleHalfHeight();
-			float ZCorrection = SmoothedPivotZ - ActualCapsuleZ;  // delta from target
-			FinalPivot.Z += ZCorrection;
-		}
-	}
-
-	//float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta;
-	float FinalFOV = CurrentBase.FieldOfView
-		+ CurrentStanceOffset.FOVDelta
-		+ FallFOVReduction;  // additive, negative = zoom in
-
-	// Write to spring arm
-	SpringArmRef->TargetArmLength = FinalArmLength;
-	SpringArmRef->SocketOffset = FinalSocketOffset;
-	SpringArmRef->SetRelativeLocation(FinalPivot);
-	SpringArmRef->CameraLagSpeed = CurrentBase.LagSpeed;
-	SpringArmRef->CameraRotationLagSpeed = CurrentBase.RotationLagSpeed;
-	CameraRef->FieldOfView = FinalFOV;
-}
-
-// ── Initialization ────────────────────────────────────────────────────────────
-
-void UPlayerCameraComponent::SetReference()
-{
-	Character = Cast<ACharacter>(GetOwner());
-	if (IsValid(Character))
-	{
-		CharacterMovement = Character->GetCharacterMovement();
-	}
-}
-
 void UPlayerCameraComponent::InitCamera(bool bUseGameplayCamera)
 {
 	if (!IsValid(Character)) SetReference();

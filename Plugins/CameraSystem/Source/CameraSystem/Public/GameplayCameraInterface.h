@@ -1,10 +1,11 @@
 ﻿#pragma once
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "GameplayTagContainer.h"
 #include "GameplayCameraInterface.generated.h"
 
 // ── Enumerations ─────────────────────────────────────────────────────────────
-
+// for gameplay camera
 UENUM(BlueprintType)
 enum class Enum_CameraStyle : uint8
 {
@@ -20,29 +21,6 @@ enum class Enum_CameraMode : uint8
 	Freecam UMETA(DisplayName = "Freecam"),
 	Strafe  UMETA(DisplayName = "Strafe"),
 	Aim     UMETA(DisplayName = "Aim")
-};
-
-UENUM(BlueprintType)
-enum class Enum_CameraBasePreset : uint8
-{
-	LowProfile  UMETA(DisplayName = "Low Profile"),   // walk, run
-	HighProfile UMETA(DisplayName = "High Profile"),  // sprint
-	Aiming      UMETA(DisplayName = "Aiming"),
-	Combat      UMETA(DisplayName = "Combat")
-};
-
-UENUM(BlueprintType)
-enum class Enum_CameraStanceOffset : uint8
-{
-	Stand  UMETA(DisplayName = "Stand"),
-	Crouch UMETA(DisplayName = "Crouch")
-};
-
-UENUM(BlueprintType)
-enum class Enum_CameraShoulderOffset : uint8
-{
-	Right UMETA(DisplayName = "Right"),
-	Left  UMETA(DisplayName = "Left")
 };
 
 // ── Rig Param Structs ─────────────────────────────────────────────────────────
@@ -102,7 +80,7 @@ struct FStruct_CameraRigOffset
 };
 
 // ── Interface Structs ─────────────────────────────────────────────────────────
-
+// for gameplay camera
 USTRUCT(BlueprintType)
 struct FStruct_GameplayCamera
 {
@@ -117,20 +95,20 @@ struct FStruct_GameplayCamera
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsCrouched = false;
 };
-
+// for springarm
 USTRUCT(BlueprintType)
 struct FStruct_SpringArmCamera
 {
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	Enum_CameraBasePreset BasePreset = Enum_CameraBasePreset::LowProfile;
+	FGameplayTag BasePreset;        // e.g. CameraSystem.Preset.LowProfile
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	Enum_CameraStanceOffset StanceOffset = Enum_CameraStanceOffset::Stand;
+	FGameplayTag StanceOffset;      // e.g. CameraSystem.Stance.Crouch
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	Enum_CameraShoulderOffset ShoulderOffset = Enum_CameraShoulderOffset::Right;
+	FGameplayTag ShoulderOffset;    // e.g. CameraSystem.Shoulder.Right
 };
 
 // ── Interface ─────────────────────────────────────────────────────────────────

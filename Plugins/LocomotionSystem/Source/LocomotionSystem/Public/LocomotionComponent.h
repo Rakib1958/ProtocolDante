@@ -108,8 +108,10 @@ private:
 	float CalculateMaxSpeedProned();
 	Enum_Gait GetDesiredGait();
 
-	// Smooth Dimension Transition Core
+	// Smooth Dimension Transitions & Early Fall Predictor
 	void TickStanceTransition(float DeltaTime);
+	void CheckPredictiveProneLedgeFall();
+
 	float TargetCapsuleHalfHeight = 0.f;
 
 protected:
@@ -148,7 +150,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float ProneCapsuleHalfHeight = 30.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float StanceTransitionSpeed = 10.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneRotationRateYaw = 35.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneRotationRateYaw = 100.f;
+	// Maximum turning rate when moving straight or making microscopic corrections
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneMaxRotationRateYaw = 120.f;
+
+	// Minimum turning rate when executing heavy, wide turning arcs
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneMinRotationRateYaw = 40.f;
 
 public:
 	// Dynamic Runtime States Tracking

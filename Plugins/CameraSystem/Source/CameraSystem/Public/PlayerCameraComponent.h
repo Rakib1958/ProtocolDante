@@ -34,17 +34,14 @@ public:
 
 	// ── Preset Maps — fill in Blueprint Details panel ─────────────────────────
 
-	// Full rig per base preset (LowProfile, HighProfile, Aiming, Combat)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-	TMap<Enum_CameraBasePreset, FStruct_CameraRigParams> BasePresetMap;
+		TMap<FGameplayTag, FStruct_CameraRigParams> BasePresetMap;
 
-	// Additive stance offset (Stand = zero offset, Crouch = drops pivot etc)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-	TMap<Enum_CameraStanceOffset, FStruct_CameraRigOffset> StanceOffsetMap;
+	TMap<FGameplayTag, FStruct_CameraRigOffset> StanceOffsetMap;
 
-	// Additive shoulder offset (Left/Right socket offset only)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-	TMap<Enum_CameraShoulderOffset, FStruct_CameraRigOffset> ShoulderOffsetMap;
+	TMap<FGameplayTag, FStruct_CameraRigOffset> ShoulderOffsetMap;
 
 	// ── Runtime State ─────────────────────────────────────────────────────────
 
@@ -107,7 +104,7 @@ private:
 	FStruct_CameraRigOffset CurrentStanceOffset;
 	FStruct_CameraRigOffset CurrentShoulderOffset;
 
-	Enum_CameraStanceOffset LastStanceOffset = Enum_CameraStanceOffset::Stand;
+	FGameplayTag LastStanceOffset = FGameplayTag::RequestGameplayTag(TEXT("CameraSystem.Stance.Stand"));
 	bool bIsStanceTransitioning = false;
 
 	// Override rig target and its interp speed
