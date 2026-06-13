@@ -170,14 +170,19 @@ void UPlayerCameraComponent::UpdateCollision(float DeltaTime)
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef)) return;
 
 	FVector Start = SpringArmRef->GetComponentLocation();
-	FVector End = CameraRef->GetComponentLocation();
+
+	// Use the DESIRED end point (where camera would be without collision)
+	// not the actual lagged camera position
+	FVector ArmDir = SpringArmRef->GetComponentRotation().Vector() * -1.f;
+	float   DesiredArmLength = CurrentBase.TargetArmLength + CurrentStanceOffset.ArmLengthDelta;
+	FVector DesiredEnd = Start + ArmDir * DesiredArmLength;
 
 	FHitResult Hit;
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(GetOwner());
 
 	bool bHit = GetWorld()->SweepSingleByChannel(
-		Hit, Start, End, FQuat::Identity,
+		Hit, Start, DesiredEnd, FQuat::Identity,
 		ECC_Visibility,
 		FCollisionShape::MakeSphere(12.f),
 		Params
@@ -186,19 +191,33 @@ void UPlayerCameraComponent::UpdateCollision(float DeltaTime)
 	if (bHit)
 	{
 		float HitDist = FVector::Dist(Start, Hit.ImpactPoint);
-		float ArmCorrection = CurrentBase.TargetArmLength - HitDist;
-		CollisionArmCorrection = FMath::FInterpTo(CollisionArmCorrection, ArmCorrection, DeltaTime, 15.f);
+		float ArmCorrection = DesiredArmLength - HitDist;
+		CollisionArmCorrection = FMath::FInterpTo(
+			CollisionArmCorrection, ArmCorrection, DeltaTime, 15.f);
 
-		// Push socket offset toward center based on which side the wall is on
-		float RightDot = FVector::DotProduct(Hit.ImpactNormal, Character->GetActorRightVector());
-		float OffsetCorrection = FMath::Abs(CurrentBase.SocketOffset.Y + CurrentShoulderOffset.SocketOffsetDelta.Y) * FMath::Abs(RightDot);
-		CollisionOffsetCorrection = FMath::FInterpTo(CollisionOffsetCorrection, OffsetCorrection, DeltaTime, 8.f);
+		float RightDot = FVector::DotProduct(
+			Hit.ImpactNormal, Character->GetActorRightVector());
+		float OffsetCorrection = FMath::Abs(
+			CurrentBase.SocketOffset.Y + CurrentShoulderOffset.SocketOffsetDelta.Y)
+			* FMath::Abs(RightDot);
+		CollisionOffsetCorrection = FMath::FInterpTo(
+			CollisionOffsetCorrection, OffsetCorrection, DeltaTime, 8.f);
 	}
 	else
 	{
-		// Restore — slow out feels more natural than snapping back
-		CollisionArmCorrection = FMath::FInterpTo(CollisionArmCorrection, 0.f, DeltaTime, 3.f);
-		CollisionOffsetCorrection = FMath::FInterpTo(CollisionOffsetCorrection, 0.f, DeltaTime, 4.f);
+		// Restore speed scales with how fast the character is moving
+		// Fast movement (mantle/vault) drains collision correction quickly
+		float CharSpeed = Character->GetCharacterMovement()->Velocity.Size();
+		float RestoreSpeed = FMath::GetMappedRangeValueClamped(
+			FVector2D(0.f, 500.f),
+			FVector2D(3.f, 12.f),   // slow restore at rest, fast restore during parkour
+			CharSpeed
+		);
+
+		CollisionArmCorrection = FMath::FInterpTo(
+			CollisionArmCorrection, 0.f, DeltaTime, RestoreSpeed);
+		CollisionOffsetCorrection = FMath::FInterpTo(
+			CollisionOffsetCorrection, 0.f, DeltaTime, RestoreSpeed);
 	}
 }
 
