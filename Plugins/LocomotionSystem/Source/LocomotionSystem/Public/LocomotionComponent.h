@@ -111,8 +111,13 @@ private:
 	// Smooth Dimension Transitions & Early Fall Predictor
 	void TickStanceTransition(float DeltaTime);
 	void CheckPredictiveProneLedgeFall();
+	void SetRotationWhileProning();
 
 	float TargetCapsuleHalfHeight = 0.f;
+	void DebugPrint(FString text, FColor color, float duration);
+
+	/** Sweeps forward and backward to prevent head and feet from clipping through geometry. */
+	void HandleProneExtremityCollisions(float DeltaTime);
 
 protected:
 	// ─── RAGDOLL STORAGE PARAMETERS ───
@@ -120,9 +125,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimMontage* RagdollGetUpFront = nullptr;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") FName PelvisBone = "pelvis";
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") FName SnapshotName = "RagdollPose";
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") bool bRagdollOnGround = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") bool bRagdollFaceUp = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") FVector LastRagdollVelocity = FVector::ZeroVector;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll|Do Not Change") bool bRagdollOnGround = false;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll|Do Not Change") bool bRagdollFaceUp = false;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll|Do Not Change") FVector LastRagdollVelocity = FVector::ZeroVector;
 
 	// ─── EVALUATION CURVES ───
 	UPROPERTY(EditAnywhere, Category = "Curves") UCurveFloat* StrafeSpeedMapCurve = nullptr;
@@ -135,7 +143,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector WalkSpeedRelaxed = FVector(165.f, 165.f, 165.f);
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector WalkSpeedStealth = FVector(165.f, 165.f, 165.f);
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector WalkSpeedCombat = FVector(165.f, 165.f, 165.f);
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed") FVector LandVelocity = FVector::ZeroVector;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Speed|Do Not Change") FVector LandVelocity = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float WalkAcceleration = 800.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float RunAcceleration = 300.f;
@@ -149,25 +158,44 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float CrouchCapsuleHalfHeight = 40.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float ProneCapsuleHalfHeight = 30.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Dimensions") float StanceTransitionSpeed = 10.f;
-
+	// How fast the character Moves by default while proning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneRotationRateYaw = 100.f;
 	// Maximum turning rate when moving straight or making microscopic corrections
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneMaxRotationRateYaw = 120.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneMaxRotationRateYaw = 100.f;
 
 	// Minimum turning rate when executing heavy, wide turning arcs
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneMinRotationRateYaw = 40.f;
 
-public:
-	// Dynamic Runtime States Tracking
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") FStruct_CharacterInputState CharacterInputState;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") bool bJustLanded = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_MovementState MovementState = Enum_MovementState::Idle;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_Stance Stance = Enum_Stance::Stand;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") Enum_Gait Gait = Enum_Gait::Jog;
+	/** Distance from the capsule center to the tip of the character's head. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Collision")
+	float ProneHeadCheckLength = 85.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") float FlailRate = 0.f;
+	/** Distance from the capsule center to the tip of the character's feet. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Collision")
+	float ProneLegCheckLength = 95.f;
+
+	/** Thickness radius of the body check (should approximate shoulder/waist width). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Collision")
+	float ProneExtremityRadius = 24.f;
+
+public:
+	// Dynamic Runtime States Tracking, you can set by default WantsToStrafe for NPCs
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States") FStruct_CharacterInputState CharacterInputState;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "States|Do Not Change") bool bJustLanded = false;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_MovementMode MovementMode = Enum_MovementMode::OnGround;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_MovementState MovementState = Enum_MovementState::Idle;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_CharacterState CharacterState = Enum_CharacterState::Relaxed;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_Stance Stance = Enum_Stance::Stand;
+	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_Gait Gait = Enum_Gait::Jog;
+	// Do Not Modify these values, these are changed by the functions associated with it
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll|Do Not Change") float FlailRate = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimSequence* FlailSequence = nullptr;
 
 	// Dispatcher Event Triggers
