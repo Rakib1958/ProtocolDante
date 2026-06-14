@@ -32,7 +32,7 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		EvaluateAndInterpStanceOffset(DeltaTime);
 		EvaluateAndInterpShoulderOffset(DeltaTime);
 		UpdateCapsuleZSmoothing(DeltaTime);
-		UpdateCollision(DeltaTime);
+		UpdateNotifyOverride(DeltaTime);
 		if (CharacterMovement->IsFalling())
 		{
 			UpdateFallFeel(DeltaTime);
@@ -82,11 +82,10 @@ void UPlayerCameraComponent::EvaluateAndInterpShoulderOffset(float DeltaTime)
 
 void UPlayerCameraComponent::ApplyToSpringArm()
 {
-	// Combine all layers
+	// ── Layer 1: base + stance + shoulder ────────────────────────────────────
 	float FinalArmLength = FMath::Max(
 		CurrentBase.TargetArmLength
 		+ CurrentStanceOffset.ArmLengthDelta
-		- CollisionArmCorrection
 		- FallArmReduction,
 		0.f
 	);
@@ -94,12 +93,6 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 	FVector FinalSocketOffset = CurrentBase.SocketOffset
 		+ CurrentStanceOffset.SocketOffsetDelta
 		+ CurrentShoulderOffset.SocketOffsetDelta;
-
-	// Collision pushes socket toward center (reduces Y magnitude)
-	float SocketYSign = FMath::Sign(FinalSocketOffset.Y);
-	FinalSocketOffset.Y = FMath::Max(
-		FMath::Abs(FinalSocketOffset.Y) - CollisionOffsetCorrection, 0.f
-	) * SocketYSign;
 
 	FVector FinalPivot = CurrentBase.PivotOffset + CurrentStanceOffset.PivotOffsetDelta;
 
@@ -111,17 +104,27 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 		if (IsValid(Capsule))
 		{
 			float ActualCapsuleZ = Capsule->GetScaledCapsuleHalfHeight();
-			float ZCorrection = SmoothedPivotZ - ActualCapsuleZ;  // delta from target
+			float ZCorrection = SmoothedPivotZ - ActualCapsuleZ;
 			FinalPivot.Z += ZCorrection;
 		}
 	}
 
-	//float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta;
 	float FinalFOV = CurrentBase.FieldOfView
 		+ CurrentStanceOffset.FOVDelta
 		+ FallFOVReduction;  // additive, negative = zoom in
 
-	// Write to spring arm
+	// ── Layer 2: anim-notify override (additive on top) ───────────────────────
+	if (bIsOverrideActive)
+	{
+		FinalSocketOffset += CurrentNotifyOverride.SocketOffsetDelta;
+		FinalFOV += CurrentNotifyOverride.FOVDelta;
+		// Rotation delta is applied as an additive offset to the spring arm's
+		// current relative rotation so it stacks cleanly with pawn control rotation
+		FRotator CurrentRel = SpringArmRef->GetRelativeRotation();
+		SpringArmRef->SetRelativeRotation(CurrentRel + CurrentNotifyOverride.RotationDelta);
+	}
+
+	// ── Write to components ───────────────────────────────────────────────────
 	SpringArmRef->TargetArmLength = FinalArmLength;
 	SpringArmRef->SocketOffset = FinalSocketOffset;
 	SpringArmRef->SetRelativeLocation(FinalPivot);
@@ -165,59 +168,59 @@ void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
 	}
 }
 
-void UPlayerCameraComponent::UpdateCollision(float DeltaTime)
+// ── Anim-Notify Camera Override ───────────────────────────────────────────────
+
+void UPlayerCameraComponent::BeginCameraOverride(FStruct_CameraNotifyParams DefaultParams,
+	FStruct_CameraNotifyParams TargetParams)
 {
-	if (!IsValid(SpringArmRef) || !IsValid(CameraRef)) return;
+	NotifyDefaultParams = DefaultParams;
+	NotifyTargetParams = TargetParams;
+	bIsOverrideActive = true;
+	bNotifyBlendingIn = true;
+	bNotifyBlendingOut = false;
+}
 
-	FVector Start = SpringArmRef->GetComponentLocation();
+void UPlayerCameraComponent::EndCameraOverride()
+{
+	// Begin blending back toward the default params supplied at notify begin.
+	// bIsOverrideActive stays true until UpdateNotifyOverride confirms it settled.
+	bNotifyBlendingIn = false;
+	bNotifyBlendingOut = true;
+}
 
-	// Use the DESIRED end point (where camera would be without collision)
-	// not the actual lagged camera position
-	FVector ArmDir = SpringArmRef->GetComponentRotation().Vector() * -1.f;
-	float   DesiredArmLength = CurrentBase.TargetArmLength + CurrentStanceOffset.ArmLengthDelta;
-	FVector DesiredEnd = Start + ArmDir * DesiredArmLength;
+void UPlayerCameraComponent::UpdateNotifyOverride(float DeltaTime)
+{
+	if (!bIsOverrideActive) return;
 
-	FHitResult Hit;
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(GetOwner());
+	// Choose the target for this frame
+	const FStruct_CameraNotifyParams& Target =
+		bNotifyBlendingIn ? NotifyTargetParams : NotifyDefaultParams;
 
-	bool bHit = GetWorld()->SweepSingleByChannel(
-		Hit, Start, DesiredEnd, FQuat::Identity,
-		ECC_Visibility,
-		FCollisionShape::MakeSphere(12.f),
-		Params
-	);
+	float Speed = Target.InterpSpeed;
 
-	if (bHit)
+	CurrentNotifyOverride.SocketOffsetDelta = FMath::VInterpTo(
+		CurrentNotifyOverride.SocketOffsetDelta, Target.SocketOffsetDelta, DeltaTime, Speed);
+
+	CurrentNotifyOverride.RotationDelta = FMath::RInterpTo(
+		CurrentNotifyOverride.RotationDelta, Target.RotationDelta, DeltaTime, Speed);
+
+	CurrentNotifyOverride.FOVDelta = FMath::FInterpTo(
+		CurrentNotifyOverride.FOVDelta, Target.FOVDelta, DeltaTime, Speed);
+
+	// Once blending out, check if we've settled back to zero/default
+	if (bNotifyBlendingOut)
 	{
-		float HitDist = FVector::Dist(Start, Hit.ImpactPoint);
-		float ArmCorrection = DesiredArmLength - HitDist;
-		CollisionArmCorrection = FMath::FInterpTo(
-			CollisionArmCorrection, ArmCorrection, DeltaTime, 15.f);
+		bool bSocketSettled = CurrentNotifyOverride.SocketOffsetDelta.Equals(Target.SocketOffsetDelta, 0.5f);
+		bool bRotationSettled = CurrentNotifyOverride.RotationDelta.Equals(Target.RotationDelta, 0.1f);
+		bool bFOVSettled = FMath::IsNearlyEqual(CurrentNotifyOverride.FOVDelta, Target.FOVDelta, 0.1f);
 
-		float RightDot = FVector::DotProduct(
-			Hit.ImpactNormal, Character->GetActorRightVector());
-		float OffsetCorrection = FMath::Abs(
-			CurrentBase.SocketOffset.Y + CurrentShoulderOffset.SocketOffsetDelta.Y)
-			* FMath::Abs(RightDot);
-		CollisionOffsetCorrection = FMath::FInterpTo(
-			CollisionOffsetCorrection, OffsetCorrection, DeltaTime, 8.f);
-	}
-	else
-	{
-		// Restore speed scales with how fast the character is moving
-		// Fast movement (mantle/vault) drains collision correction quickly
-		float CharSpeed = Character->GetCharacterMovement()->Velocity.Size();
-		float RestoreSpeed = FMath::GetMappedRangeValueClamped(
-			FVector2D(0.f, 500.f),
-			FVector2D(3.f, 12.f),   // slow restore at rest, fast restore during parkour
-			CharSpeed
-		);
-
-		CollisionArmCorrection = FMath::FInterpTo(
-			CollisionArmCorrection, 0.f, DeltaTime, RestoreSpeed);
-		CollisionOffsetCorrection = FMath::FInterpTo(
-			CollisionOffsetCorrection, 0.f, DeltaTime, RestoreSpeed);
+		if (bSocketSettled && bRotationSettled && bFOVSettled)
+		{
+			// Fully restored — clear everything so normal evaluation resumes
+			CurrentNotifyOverride = FStruct_CameraNotifyParams();
+			bIsOverrideActive = false;
+			bNotifyBlendingOut = false;
+		}
 	}
 }
 
@@ -296,7 +299,7 @@ void UPlayerCameraComponent::InitializeCamera()
 	SpringArmRef->bEnableCameraRotationLag = true;
 	SpringArmRef->CameraLagSpeed = LagSpeed;
 	SpringArmRef->CameraRotationLagSpeed = RotationLagSpeed;
-	SpringArmRef->bDoCollisionTest = false; // we handle collision ourselves
+	SpringArmRef->bDoCollisionTest = true;  // use built-in spring arm collision probe
 
 	CameraRef->FieldOfView = FieldOfView;
 	CameraRef->bAutoActivate = true;

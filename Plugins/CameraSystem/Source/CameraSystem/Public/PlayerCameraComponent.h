@@ -35,7 +35,7 @@ public:
 	// ── Preset Maps — fill in Blueprint Details panel ─────────────────────────
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-		TMap<FGameplayTag, FStruct_CameraRigParams> BasePresetMap;
+	TMap<FGameplayTag, FStruct_CameraRigParams> BasePresetMap;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
 	TMap<FGameplayTag, FStruct_CameraRigOffset> StanceOffsetMap;
@@ -49,8 +49,24 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Camera|State")
 	FStruct_SpringArmCamera DesiredCameraState;
 
+	// True while the notify override layer is blending in or holding
 	UPROPERTY(BlueprintReadOnly, Category = "Camera|State")
 	bool bIsOverrideActive = false;
+
+	// ── Anim-Notify Camera Override ───────────────────────────────────────────
+
+	// Called from AnimNotifyState::NotifyBegin (via Blueprint).
+	// DefaultParams   — where to restore to when the notify ends.
+	// TargetParams    — where to interpolate toward right now.
+	UFUNCTION(BlueprintCallable, Category = "Camera|Notify Override")
+	void BeginCameraOverride(FStruct_CameraNotifyParams DefaultParams,
+		FStruct_CameraNotifyParams TargetParams);
+
+	// Called from AnimNotifyState::NotifyEnd (via Blueprint).
+	// Kicks off the interpolation back toward the DefaultParams that were
+	// supplied at BeginCameraOverride; clears the override once settled.
+	UFUNCTION(BlueprintCallable, Category = "Camera|Notify Override")
+	void EndCameraOverride();
 
 	// ── Capsule Z Smoothing ───────────────────────────────────────────────────
 
@@ -107,21 +123,29 @@ private:
 	FGameplayTag LastStanceOffset = FGameplayTag::RequestGameplayTag(TEXT("CameraSystem.Stance.Stand"));
 	bool bIsStanceTransitioning = false;
 
-	// Override rig target and its interp speed
-	FStruct_CameraRigParams OverrideRig;
-	float OverrideInterpSpeed = 5.f;
-	float RestoreInterpSpeed = 3.f;
-
 	// Smoothed capsule Z — avoids snap on crouch
 	float SmoothedPivotZ = 0.f;
 	bool  bPivotZInitialized = false;
 
-	// Collision correction values
-	float CollisionArmCorrection = 0.f;
-	float CollisionOffsetCorrection = 0.f;
+	float FallFOVReduction = 0.f;
+	float FallArmReduction = 0.f;
 
-	float FallFOVReduction;
-	float FallArmReduction;
+	// ── Notify Override State (internal) ──────────────────────────────────────
+
+	// The two bookend param sets supplied by the AnimNotifyState
+	FStruct_CameraNotifyParams NotifyDefaultParams;   // restore target
+	FStruct_CameraNotifyParams NotifyTargetParams;    // enter target
+
+	// Live interpolated override values — applied additively in ApplyToSpringArm
+	FStruct_CameraNotifyParams CurrentNotifyOverride;
+
+	// True  → interpolating toward NotifyTargetParams  (NotifyBegin)
+	// False → interpolating toward NotifyDefaultParams (NotifyEnd)
+	bool bNotifyBlendingIn = false;
+
+	// Once EndCameraOverride is called we blend back; when close enough we
+	// clear bIsOverrideActive entirely.
+	bool bNotifyBlendingOut = false;
 
 	// ── Private Methods ───────────────────────────────────────────────────────
 
@@ -136,7 +160,7 @@ private:
 	void EvaluateAndInterpStanceOffset(float DeltaTime);
 	void EvaluateAndInterpShoulderOffset(float DeltaTime);
 	void UpdateCapsuleZSmoothing(float DeltaTime);
-	void UpdateCollision(float DeltaTime);
+	void UpdateNotifyOverride(float DeltaTime);
 	void ApplyToSpringArm();
 	void UpdateFallFeel(float DeltaTime);
 };

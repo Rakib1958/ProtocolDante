@@ -79,6 +79,34 @@ struct FStruct_CameraRigOffset
 	float InterpSpeed = 6.f;
 };
 
+// ── Notify Override Params ────────────────────────────────────────────────────
+
+// Params used by AnimNotifyState to drive camera overrides.
+// Two of these are passed per notify: one for the "enter" target, one for the
+// "exit" / restore target.  SocketOffset is additive on top of the current
+// spring-arm socket offset so it works with any base preset.
+USTRUCT(BlueprintType)
+struct FStruct_CameraNotifyParams
+{
+	GENERATED_BODY()
+
+	// Additive socket-offset applied on top of the evaluated spring-arm socket offset
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Notify")
+	FVector SocketOffsetDelta = FVector::ZeroVector;
+
+	// Additive pitch / yaw / roll applied to the spring arm's relative rotation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Notify")
+	FRotator RotationDelta = FRotator::ZeroRotator;
+
+	// Additive FOV delta (negative = zoom in)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Notify")
+	float FOVDelta = 0.f;
+
+	// How fast to interpolate toward these values
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Notify")
+	float InterpSpeed = 5.f;
+};
+
 // ── Interface Structs ─────────────────────────────────────────────────────────
 // for gameplay camera
 USTRUCT(BlueprintType)
