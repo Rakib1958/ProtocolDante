@@ -95,6 +95,24 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
 	float FieldOfView = 90.f;
 
+	// ── FIRST PERSON CONFIGURATIONS ──────────────────────────────────────────
+
+	/** Forward structural offset from the head bone origin to clear eye/nose mesh geometry. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
+	FVector FPSMeshOffset = FVector(15.f, 0.f, 5.f);
+
+	/** Maximum vertical view ceiling when standing or crouching in FPS (Default: 70 degrees). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
+	float FPSNormalPitchLimit = 70.f;
+
+	/** Tighter vertical view ceiling when flat on stomach to prevent looking through the chest. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
+	float FPSPronePitchLimit = 35.f;
+
+	/** Camera rotation smoothing delay when prone. Lower values make the view feel heavily sluggish. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
+	float FPSProneRotationLag = 3.0f;
+
 private:
 	// ── Component References ──────────────────────────────────────────────────
 
@@ -174,4 +192,7 @@ private:
 
 	void EvaluateAndInterpFPS(float DeltaTime);
 	void SwitchToFPS(bool bEnable);
+
+	void ConfigureFPSViewLimits(bool bIsProne);
+	void ResetCameraManagerLimits();
 };

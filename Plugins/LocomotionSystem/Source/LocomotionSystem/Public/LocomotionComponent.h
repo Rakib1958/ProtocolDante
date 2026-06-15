@@ -71,6 +71,9 @@ struct FStruct_CharacterInputState
 // ─── SYSTEM MULTI-CAST DELEGATES ───
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateMovementSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateRotationSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStanceChanged, Enum_Stance, NewStance);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMovementModeChanged, Enum_MovementMode, NewMovementMode);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterStateChanged, Enum_CharacterState, NewCharacterState);
 
 UCLASS(ClassGroup = (Custom), Blueprintable, BlueprintType, meta = (BlueprintSpawnableComponent))
 class LOCOMOTIONSYSTEM_API ULocomotionComponent : public UActorComponent
@@ -207,6 +210,9 @@ public:
 	// Dispatcher Event Triggers
 	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnUpdateMovementSignature OnUpdateMovement;
 	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnUpdateRotationSignature OnUpdateRotation;
+	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnStanceChanged OnStanceChanged;
+	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Delegates") FOnMovementModeChanged OnMovementModeChanged;
+	UPROPERTY(BlueprintAssignable, Category = "Delegates")  FOnCharacterStateChanged OnCharacterStateChanged;
 
 	// ─── PUBLIC BLUEPRINT HANDSHAKES ───
 	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Ragdoll") void StartRagdoll();
@@ -230,5 +236,5 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToRun(bool bStarted);
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToAim(bool bStarted);
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToWalk(bool bStarted);
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToStrafe();
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToStrafe(bool bStrafe);
 };

@@ -17,24 +17,16 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!bIsValidCharacter) return;
 	if (MovementMode == Enum_MovementMode::Ragdoll) return;
-	// 1. Process capsule dimension updates smoothly across frame boundaries
 	TickStanceTransition(DeltaTime);
-	// 2. Predictive Ledge Checker: Triggers instant ragdoll falls if crawl limits are exceeded
 	if (Stance == Enum_Stance::Prone)
 	{
 		CheckPredictiveProneLedgeFall();
-		HandleProneExtremityCollisions(DeltaTime); // ◄ Added manual sweep pass
-		//UpdateDynamicMovementSettings();
+		HandleProneExtremityCollisions(DeltaTime); 
+
 	}
-	// 3. Fire parallel design-layer blueprint delegates
 	OnUpdateMovement.Broadcast();
 	OnUpdateRotation.Broadcast();
-	// ─── STABLE VELOCITY ROTATION RATE MAPPING ───
-	/*if (Stance == Enum_Stance::Prone)
-	{
-		SetRotationWhileProning(DeltaTime);
-		UpdateDynamicMovementSettings();
-	}*/
+
 }
 void ULocomotionComponent::SetReferences()
 {
@@ -58,94 +50,21 @@ void ULocomotionComponent::SetReferences()
 // Prone system
 void ULocomotionComponent::CheckPredictiveProneLedgeFall()
 {
-	// Only calculate early drop-offs if Dante is actively crawling forward
 	if (CharacterMovement->Velocity.Size2D() < 15.f) return;
 	FVector CoreLocation = Character->GetActorLocation();
 	FVector MoveDirection = CharacterMovement->Velocity.GetSafeNormal2D();
-	// Project trace origin 45 units forward from capsule center to match his physical head line position
 	FVector TraceStart = CoreLocation + (MoveDirection * 40.f);
 	FVector TraceEnd = TraceStart - FVector(0.f, 0.f, CapsuleComponent->GetUnscaledCapsuleHalfHeight() + 35.f);
 	FHitResult LedgeHit;
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(Character);
-	// Perform visibility raycast channel check down past floor support boundaries
 	bool bGroundExistsAhead = Character->GetWorld()->LineTraceSingleByChannel(
 		LedgeHit, TraceStart, TraceEnd, ECC_Visibility, Params
 	);
-	// If head/torso extends past support boundaries over open air, execute ragdoll collapse instantly
 	if (!bGroundExistsAhead)
 	{
 		StartRagdoll();
 	}
-}
-//void ULocomotionComponent::SetRotationWhileProning()
-//{
-//	if (!bIsValidCharacter || !IsValid(CharacterMovement)) return;
-//	// Establish baseline configuration entries
-//	float ActiveRotationRate = ProneMaxRotationRateYaw;
-//	float ActiveAcceleration = ProneMaxAcceleration;
-//	// Apply dynamic damping curves ONLY if the player is actively moving and pushing a stick input
-//	if (CharacterMovement->Velocity.Size2D() > 15.f && HasMovementInputVector())
-//	{
-//		FVector InputDirection = Character->GetPendingMovementInputVector().GetSafeNormal2D();
-//		FRotator TargetRotation = UKismetMathLibrary::MakeRotFromX(InputDirection);
-//		// Measure the explicit absolute angular deviation between his heading and his intent
-//		float DeltaYaw = FMath::Abs(UKismetMathLibrary::NormalizedDeltaRotator(TargetRotation, Character->GetActorRotation()).Yaw);
-//		if (DeltaYaw > 0.1f)
-//		{
-//			// 1. Smoothly scale turning speed down as the steering angle steepens (0° to 180°)
-//			ActiveRotationRate = UKismetMathLibrary::MapRangeClamped(
-//				DeltaYaw,
-//				0.f, 180.f,
-//				ProneMaxRotationRateYaw,
-//				ProneMinRotationRateYaw
-//			);
-//			// 2. NEW: Smoothly choke acceleration down as the steering angle steepens
-//			// Forcing a low acceleration value prevents Dante from gaining forward momentum
-//			// until his physical body tracks closer to his intended stick direction.
-//			ActiveAcceleration = UKismetMathLibrary::MapRangeClamped(
-//				DeltaYaw,
-//				0.f, 180.f,
-//				ProneMaxAcceleration,
-//				ProneMinAcceleration
-//			);
-//		}
-//	}
-//	// Ship calculated smooth physical values straight to the underlying physics registers
-//	CharacterMovement->RotationRate = FRotator(0.f, ActiveRotationRate, 0.f);
-//	CharacterMovement->MaxAcceleration = ActiveAcceleration;
-//}
-void ULocomotionComponent::SetRotationWhileProning(float DeltaTime)
-{
-	if (!bIsValidCharacter) return;
-
-	if (!HasMovementInputVector() || CharacterMovement->Velocity.Size2D() < 15.f)
-	{
-		// No input or nearly stopped — hold current rotation, let offset root bone settle
-		CharacterMovement->RotationRate = FRotator(0.f, 0.f, 0.f);
-		return;
-	}
-
-	FVector InputDirection = Character->GetPendingMovementInputVector().GetSafeNormal2D();
-	FRotator TargetRotation = UKismetMathLibrary::MakeRotFromX(InputDirection);
-	FRotator CurrentRotation = Character->GetActorRotation();
-
-	float DeltaYaw = FMath::Abs(
-		UKismetMathLibrary::NormalizedDeltaRotator(TargetRotation, CurrentRotation).Yaw);
-
-	// Map rotation interp speed: fast when nearly aligned, slow during heavy turns
-	float InterpSpeed = UKismetMathLibrary::MapRangeClamped(
-		DeltaYaw,
-		0.f, 180.f,
-		ProneRotationInterpSpeed,      // fast — small corrections
-		ProneRotationInterpSpeed * 0.2f // slow — heavy arc turns
-	);
-
-	FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, InterpSpeed);
-	Character->SetActorRotation(NewRotation);
-
-	// Kill CMC's rotation entirely — we own it now
-	CharacterMovement->RotationRate = FRotator(0.f, 0.f, 0.f);
 }
 void ULocomotionComponent::HandleProneExtremityCollisions(float DeltaTime)
 {
@@ -158,7 +77,7 @@ void ULocomotionComponent::HandleProneExtremityCollisions(float DeltaTime)
 	FCollisionQueryParams TraceParams;
 	TraceParams.AddIgnoredActor(Character);
 	FHitResult HitInfo;
-	// ─── PASS 1: HEAD / UPPER BODY PREDICTIVE SWEEP ───
+	// check for head
 	FVector HeadTraceEnd = CapsuleCenter + (ForwardVector * ProneHeadCheckLength);
 	bool bHeadHit = Character->GetWorld()->SweepSingleByChannel(
 		HitInfo,
@@ -186,7 +105,7 @@ void ULocomotionComponent::HandleProneExtremityCollisions(float DeltaTime)
 			CapsuleCenter = CapsuleComponent->GetComponentLocation();
 		}
 	}
-	// ─── PASS 2: LEGS / LOWER BODY PREDICTIVE SWEEP ───
+	// check for legs
 	FVector LegTraceEnd = CapsuleCenter - (ForwardVector * ProneLegCheckLength);
 	bool bLegsHit = Character->GetWorld()->SweepSingleByChannel(
 		HitInfo,
@@ -313,18 +232,22 @@ void ULocomotionComponent::SetStance(Enum_Stance NewStance)
 	{
 	case Enum_Stance::Stand: 
 		TargetCapsuleHalfHeight = StandCapsuleHalfHeight; 
-		CharacterMovement->bOrientRotationToMovement = true;
+		//CharacterMovement->bOrientRotationToMovement = true;
+		CharacterInputState.WantsToStrafe = false;
 		break;
 	case Enum_Stance::Crouch: 
 		TargetCapsuleHalfHeight = CrouchCapsuleHalfHeight; 
-		CharacterMovement->bOrientRotationToMovement = true;
+		//CharacterMovement->bOrientRotationToMovement = true;
+		CharacterInputState.WantsToStrafe = false;
 		break;
 	case Enum_Stance::Prone: 
 		TargetCapsuleHalfHeight = ProneCapsuleHalfHeight;
-		CharacterMovement->bOrientRotationToMovement = false;  // we drive rotation manually
-		CharacterMovement->bUseControllerDesiredRotation = true;
+		//CharacterMovement->bOrientRotationToMovement = false;  // we drive rotation manually
+		//CharacterMovement->bUseControllerDesiredRotation = true;
+		CharacterInputState.WantsToStrafe = true;
 		break;
 	}
+	OnStanceChanged.Broadcast(Stance);
 	UpdateDynamicMovementSettings();
 }
 void ULocomotionComponent::SetMovementMode(Enum_MovementMode NewMovementMode)
@@ -339,11 +262,16 @@ void ULocomotionComponent::SetMovementMode(Enum_MovementMode NewMovementMode)
 		return;
 	}
 	MovementMode = NewMovementMode;
+	OnMovementModeChanged.Broadcast(MovementMode);
 	UpdateDynamicMovementSettings();
 }
 void ULocomotionComponent::SetCharacterState(Enum_CharacterState NewCharacterState)
 {
-	if (CharacterState != NewCharacterState) CharacterState = NewCharacterState;
+	if (CharacterState != NewCharacterState)
+	{
+		CharacterState = NewCharacterState;
+		OnCharacterStateChanged;
+	}
 }
 void ULocomotionComponent::SetProne(bool bWantsToProne)
 {
@@ -489,7 +417,7 @@ Enum_Gait ULocomotionComponent::GetDesiredGait()
 	return Enum_Gait::Jog;
 }
 // Handle Player Inputs
-void ULocomotionComponent::WantsToStrafe_Implementation() { CharacterInputState.WantsToStrafe = !CharacterInputState.WantsToStrafe; }
+void ULocomotionComponent::WantsToStrafe_Implementation(bool bStrafe) { CharacterInputState.WantsToStrafe = bStrafe; }
 void ULocomotionComponent::WantsToRun_Implementation(bool bStarted) { CharacterInputState.WantsToRun = bStarted; }
 void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { CharacterInputState.WantsToAim = bStarted; }
 void ULocomotionComponent::WantsToWalk_Implementation(bool bStarted) { CharacterInputState.WantsToWalk = bStarted; }
