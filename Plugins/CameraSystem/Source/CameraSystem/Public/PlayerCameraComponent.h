@@ -163,4 +163,15 @@ private:
 	void UpdateNotifyOverride(float DeltaTime);
 	void ApplyToSpringArm();
 	void UpdateFallFeel(float DeltaTime);
+
+
+	// first person camera system
+	// In header — private
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Camera")
+	UCameraComponent* FPSCameraRef = nullptr;
+
+	bool bIsFPSActive = false;
+
+	void EvaluateAndInterpFPS(float DeltaTime);
+	void SwitchToFPS(bool bEnable);
 };

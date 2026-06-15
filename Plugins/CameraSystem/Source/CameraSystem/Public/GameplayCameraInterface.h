@@ -128,15 +128,14 @@ USTRUCT(BlueprintType)
 struct FStruct_SpringArmCamera
 {
 	GENERATED_BODY()
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTag BasePreset;        // e.g. CameraSystem.Preset.LowProfile
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTag StanceOffset;      // e.g. CameraSystem.Stance.Crouch
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTag ShoulderOffset;    // e.g. CameraSystem.Shoulder.Right
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FGameplayTag ViewMode;
 };
 
 // ── Interface ─────────────────────────────────────────────────────────────────

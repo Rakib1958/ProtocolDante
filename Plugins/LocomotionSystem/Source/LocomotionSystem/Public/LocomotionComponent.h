@@ -111,7 +111,7 @@ private:
 	// Smooth Dimension Transitions & Early Fall Predictor
 	void TickStanceTransition(float DeltaTime);
 	void CheckPredictiveProneLedgeFall();
-	void SetRotationWhileProning();
+	void SetRotationWhileProning(float DeltaTime);
 
 	float TargetCapsuleHalfHeight = 0.f;
 	void DebugPrint(FString text, FColor color, float duration);
@@ -151,9 +151,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float RunAcceleration = 300.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float BrakingDeceleration = 500.f;
 	/** Maximum input acceleration driving force when crawling completely straight. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float ProneMaxAcceleration = 600.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float ProneMaxAcceleration = 350.f;
 	/** Minimum input acceleration driving force when executing maximum, heavy turning arcs. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float ProneMinAcceleration = 150.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float ProneMinAcceleration = 90.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float WalkGroundFriction = 5.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float RunGroundFriction = 3.f;
@@ -170,6 +170,7 @@ protected:
 
 	// Minimum turning rate when executing heavy, wide turning arcs
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneMinRotationRateYaw = 40.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Rotation") float ProneRotationInterpSpeed = 7.5f;   // Main "struggle / inertia" control
 
 	/** Distance from the capsule center to the tip of the character's head. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Collision")
@@ -223,6 +224,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Set State") void SetCharacterState(Enum_CharacterState NewCharacterState);
 	UFUNCTION(BlueprintCallable, Category = "Set State") void SetProne(bool bWantsToProne);
 	UFUNCTION(BlueprintPure, Category = "Queries") bool CanStandFromProne() const;
+	UFUNCTION(BlueprintPure, Category = "Queries") bool CanStandFromCrouch() const;
 
 	// ─── NATIVE INPUT EXECUTION HOOKS ───
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToRun(bool bStarted);

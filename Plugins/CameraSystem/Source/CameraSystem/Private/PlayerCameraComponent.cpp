@@ -14,11 +14,10 @@ void UPlayerCameraComponent::BeginPlay()
 }
 
 // ── Tick ─────────────────────────────────────────────────────────────────────
-
 void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
+	if (!IsValid(Character)) return;
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef) || !IsValid(Character)) return;
 	if (Character->GetClass()->ImplementsInterface(UGameplayCameraInterface::StaticClass()))
 	{
@@ -28,21 +27,25 @@ void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 			return;
 		}
 		DesiredCameraState = IGameplayCameraInterface::Execute_GetCharacterPropertiesForSpringArmCamera(Character);
+		bool bWantsFPS = DesiredCameraState.ViewMode == FGameplayTag::RequestGameplayTag("CameraSystem.ViewMode.FirstPerson");
+		if (bWantsFPS != bIsFPSActive) SwitchToFPS(bWantsFPS);
+
+		if (bIsFPSActive)
+		{
+			EvaluateAndInterpFPS(DeltaTime); // only FOV interp needed
+			return; // skip spring arm pipeline entirely
+		}
 		EvaluateAndInterpBase(DeltaTime);
 		EvaluateAndInterpStanceOffset(DeltaTime);
 		EvaluateAndInterpShoulderOffset(DeltaTime);
 		UpdateCapsuleZSmoothing(DeltaTime);
 		UpdateNotifyOverride(DeltaTime);
-		if (CharacterMovement->IsFalling())
-		{
-			UpdateFallFeel(DeltaTime);
-		}
+		if (CharacterMovement->IsFalling()) { UpdateFallFeel(DeltaTime); }
 		ApplyToSpringArm();
 	}
 }
 
 // ── Tick Sub-steps ────────────────────────────────────────────────────────────
-
 void UPlayerCameraComponent::EvaluateAndInterpBase(float DeltaTime)
 {
 	const FStruct_CameraRigParams* Target = BasePresetMap.Find(DesiredCameraState.BasePreset);
@@ -56,7 +59,6 @@ void UPlayerCameraComponent::EvaluateAndInterpBase(float DeltaTime)
 	CurrentBase.LagSpeed = FMath::FInterpTo(CurrentBase.LagSpeed, Target->LagSpeed, DeltaTime, Speed);
 	CurrentBase.RotationLagSpeed = FMath::FInterpTo(CurrentBase.RotationLagSpeed, Target->RotationLagSpeed, DeltaTime, Speed);
 }
-
 void UPlayerCameraComponent::EvaluateAndInterpStanceOffset(float DeltaTime)
 {
 	const FStruct_CameraRigOffset* Target = StanceOffsetMap.Find(DesiredCameraState.StanceOffset);
@@ -68,7 +70,6 @@ void UPlayerCameraComponent::EvaluateAndInterpStanceOffset(float DeltaTime)
 	CurrentStanceOffset.ArmLengthDelta = FMath::FInterpTo(CurrentStanceOffset.ArmLengthDelta, Target->ArmLengthDelta, DeltaTime, Speed);
 	CurrentStanceOffset.FOVDelta = FMath::FInterpTo(CurrentStanceOffset.FOVDelta, Target->FOVDelta, DeltaTime, Speed);
 }
-
 void UPlayerCameraComponent::EvaluateAndInterpShoulderOffset(float DeltaTime)
 {
 	const FStruct_CameraRigOffset* Target = ShoulderOffsetMap.Find(DesiredCameraState.ShoulderOffset);
@@ -78,8 +79,6 @@ void UPlayerCameraComponent::EvaluateAndInterpShoulderOffset(float DeltaTime)
 	CurrentShoulderOffset.SocketOffsetDelta = FMath::VInterpTo(CurrentShoulderOffset.SocketOffsetDelta, Target->SocketOffsetDelta, DeltaTime, Speed);
 	// Shoulder only ever shifts socket offset — pivot and arm length untouched
 }
-
-
 void UPlayerCameraComponent::ApplyToSpringArm()
 {
 	// ── Layer 1: base + stance + shoulder ────────────────────────────────────
@@ -134,7 +133,6 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 }
 
 // ── Initialization ────────────────────────────────────────────────────────────
-
 void UPlayerCameraComponent::SetReference()
 {
 	Character = Cast<ACharacter>(GetOwner());
@@ -143,7 +141,6 @@ void UPlayerCameraComponent::SetReference()
 		CharacterMovement = Character->GetCharacterMovement();
 	}
 }
-
 void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
 {
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
@@ -169,7 +166,6 @@ void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
 }
 
 // ── Anim-Notify Camera Override ───────────────────────────────────────────────
-
 void UPlayerCameraComponent::BeginCameraOverride(FStruct_CameraNotifyParams DefaultParams,
 	FStruct_CameraNotifyParams TargetParams)
 {
@@ -179,7 +175,6 @@ void UPlayerCameraComponent::BeginCameraOverride(FStruct_CameraNotifyParams Defa
 	bNotifyBlendingIn = true;
 	bNotifyBlendingOut = false;
 }
-
 void UPlayerCameraComponent::EndCameraOverride()
 {
 	// Begin blending back toward the default params supplied at notify begin.
@@ -187,7 +182,6 @@ void UPlayerCameraComponent::EndCameraOverride()
 	bNotifyBlendingIn = false;
 	bNotifyBlendingOut = true;
 }
-
 void UPlayerCameraComponent::UpdateNotifyOverride(float DeltaTime)
 {
 	if (!bIsOverrideActive) return;
@@ -223,7 +217,6 @@ void UPlayerCameraComponent::UpdateNotifyOverride(float DeltaTime)
 		}
 	}
 }
-
 void UPlayerCameraComponent::UpdateFallFeel(float DeltaTime)
 {
 	if (!IsValid(Character)) return;
@@ -254,6 +247,36 @@ void UPlayerCameraComponent::UpdateFallFeel(float DeltaTime)
 		FallArmReduction, TargetArmReduction, DeltaTime, 10.f
 	);
 }
+void UPlayerCameraComponent::EvaluateAndInterpFPS(float DeltaTime)
+{
+	// Only thing to drive in FPS is FOV — head bone handles position/rotation
+	const FStruct_CameraRigParams* Target = BasePresetMap.Find(DesiredCameraState.BasePreset);
+	if (!Target) return;
+	float CurrentFOV = FPSCameraRef->FieldOfView;
+	FPSCameraRef->FieldOfView = FMath::FInterpTo(CurrentFOV, Target->FieldOfView, DeltaTime, Target->InterpSpeed);
+}
+void UPlayerCameraComponent::SwitchToFPS(bool bEnable)
+{
+	bIsFPSActive = bEnable;
+	if (bEnable)
+	{
+		CameraRef->Deactivate();
+		FPSCameraRef->Activate();
+		// kill spring arm lag so it doesn't drift while inactive
+		SpringArmRef->bEnableCameraLag = false;
+		SpringArmRef->bEnableCameraRotationLag = false;
+	}
+	else
+	{
+		FPSCameraRef->Deactivate();
+		CameraRef->Activate();
+		SpringArmRef->bEnableCameraLag = true;
+		SpringArmRef->bEnableCameraRotationLag = true;
+		// Seed CurrentBase so third person doesn't pop on re-entry
+		if (const FStruct_CameraRigParams* Target = BasePresetMap.Find(DesiredCameraState.BasePreset))
+			CurrentBase = *Target;
+	}
+}
 void UPlayerCameraComponent::InitCamera(bool bUseGameplayCamera)
 {
 	if (!IsValid(Character)) SetReference();
@@ -270,12 +293,10 @@ void UPlayerCameraComponent::InitCamera(bool bUseGameplayCamera)
 		InitializeCamera();
 	}
 }
-
 void UPlayerCameraComponent::SetCameraReference_Implementation()
 {
 	// Override in Blueprint to assign GameplayCamera asset
 }
-
 void UPlayerCameraComponent::CreateCamera()
 {
 	SpringArmRef = NewObject<USpringArmComponent>(GetOwner(), TEXT("CameraBoom"));
@@ -285,8 +306,17 @@ void UPlayerCameraComponent::CreateCamera()
 	CameraRef = NewObject<UCameraComponent>(GetOwner(), TEXT("Camera"));
 	CameraRef->AttachToComponent(SpringArmRef, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("SpringEndPoint"));
 	CameraRef->RegisterComponent();
+	// FPS camera — attaches to head bone, inactive by default
+	FPSCameraRef = NewObject<UCameraComponent>(GetOwner(), TEXT("FPSCamera"));
+	FPSCameraRef->AttachToComponent(
+		Character->GetMesh(),
+		FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+		FName("head")   // post-Control Rig socket
+	);
+	FPSCameraRef->RegisterComponent();
+	FPSCameraRef->bAutoActivate = false;
+	FPSCameraRef->bUsePawnControlRotation = true;
 }
-
 void UPlayerCameraComponent::InitializeCamera()
 {
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef)) return;
@@ -311,7 +341,6 @@ void UPlayerCameraComponent::InitializeCamera()
 	CurrentBase.LagSpeed = LagSpeed;
 	CurrentBase.RotationLagSpeed = RotationLagSpeed;
 }
-
 void UPlayerCameraComponent::CreateGameplayCamera()
 {
 	if (!IsValid(GameplayCameraRef))
@@ -323,7 +352,6 @@ void UPlayerCameraComponent::CreateGameplayCamera()
 	GameplayCameraRef->RegisterComponent();
 	SetCameraReference();
 }
-
 void UPlayerCameraComponent::InitializeGameplayCamera()
 {
 	if (!IsValid(GameplayCameraRef)) return;
