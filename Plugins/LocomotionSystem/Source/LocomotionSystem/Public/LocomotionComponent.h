@@ -119,6 +119,7 @@ private:
 	/** Sweeps forward and backward to prevent head and feet from clipping through geometry. */
 	void HandleProneExtremityCollisions(float DeltaTime);
 
+
 protected:
 	// ─── RAGDOLL STORAGE PARAMETERS ───
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimMontage* RagdollGetUpBack = nullptr;
@@ -149,6 +150,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float WalkAcceleration = 800.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float RunAcceleration = 300.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float BrakingDeceleration = 500.f;
+	/** Maximum input acceleration driving force when crawling completely straight. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float ProneMaxAcceleration = 600.f;
+	/** Minimum input acceleration driving force when executing maximum, heavy turning arcs. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Acceleration") float ProneMinAcceleration = 150.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float WalkGroundFriction = 5.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Config|Friction") float RunGroundFriction = 3.f;

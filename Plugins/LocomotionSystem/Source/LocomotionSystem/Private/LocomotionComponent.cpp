@@ -37,7 +37,7 @@ void ULocomotionComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	// ─── STABLE VELOCITY ROTATION RATE MAPPING ───
 	if (Stance == Enum_Stance::Prone)
 	{
-		SetRotationWhileProning();
+		//SetRotationWhileProning();
 	}
 }
 void ULocomotionComponent::SetReferences()
@@ -90,27 +90,46 @@ void ULocomotionComponent::CheckPredictiveProneLedgeFall()
 }
 void ULocomotionComponent::SetRotationWhileProning()
 {
+	if (!bIsValidCharacter || !IsValid(CharacterMovement)) return;
+
+	// Establish baseline configuration entries
 	float ActiveRotationRate = ProneMaxRotationRateYaw;
-	// Apply dynamic damping curve ONLY if the player is actively moving and pushing a stick input
+	float ActiveAcceleration = ProneMaxAcceleration;
+
+	// Apply dynamic damping curves ONLY if the player is actively moving and pushing a stick input
 	if (CharacterMovement->Velocity.Size2D() > 15.f && HasMovementInputVector())
 	{
 		FVector InputDirection = Character->GetPendingMovementInputVector().GetSafeNormal2D();
 		FRotator TargetRotation = UKismetMathLibrary::MakeRotFromX(InputDirection);
+
 		// Measure the explicit absolute angular deviation between his heading and his intent
 		float DeltaYaw = FMath::Abs(UKismetMathLibrary::NormalizedDeltaRotator(TargetRotation, Character->GetActorRotation()).Yaw);
+
 		if (DeltaYaw > 0.1f)
 		{
-			// Smoothly scale the turning speed down as the steering angle gets steeper (0° to 90°)
+			// 1. Smoothly scale turning speed down as the steering angle steepens (0° to 180°)
 			ActiveRotationRate = UKismetMathLibrary::MapRangeClamped(
 				DeltaYaw,
 				0.f, 180.f,
 				ProneMaxRotationRateYaw,
 				ProneMinRotationRateYaw
 			);
+
+			// 2. NEW: Smoothly choke acceleration down as the steering angle steepens
+			// Forcing a low acceleration value prevents Dante from gaining forward momentum 
+			// until his physical body tracks closer to his intended stick direction.
+			ActiveAcceleration = UKismetMathLibrary::MapRangeClamped(
+				DeltaYaw,
+				0.f, 180.f,
+				ProneMaxAcceleration,
+				ProneMinAcceleration
+			);
 		}
 	}
-	// Ship the calculated smooth dampening value straight to the physics layer
+
+	// Ship calculated smooth physical values straight to the underlying physics registers
 	CharacterMovement->RotationRate = FRotator(0.f, ActiveRotationRate, 0.f);
+	CharacterMovement->MaxAcceleration = ActiveAcceleration;
 }
 void ULocomotionComponent::HandleProneExtremityCollisions(float DeltaTime)
 {
@@ -250,12 +269,15 @@ void ULocomotionComponent::UpdateDynamicMovementSettings()
 {
 	if (!bIsValidCharacter) return;
 
+	// Clear out friction metrics universally
+
 	CharacterMovement->MaxAcceleration = CalculateMaxAcceleration();
 	CharacterMovement->BrakingDecelerationWalking = CalculateMaxBrakingDeceleration();
 	CharacterMovement->GroundFriction = CalculateGroundFriction();
 
 	CharacterMovement->MaxWalkSpeed = (Stance == Enum_Stance::Prone) ? CalculateMaxSpeedProned() : CalculateMaxSpeed();
 	CharacterMovement->MaxWalkSpeedCrouched = (Stance == Enum_Stance::Prone) ? CalculateMaxSpeedProned() : CalculateMaxSpeedCrouched();
+
 }
 
 // Switch between different states
@@ -343,6 +365,29 @@ float ULocomotionComponent::CalculateGroundFriction()
 }
 float ULocomotionComponent::CalculateMaxAcceleration()
 {
+	//if (Stance == Enum_Stance::Prone) return ProneMaxAcceleration;
+	if (Stance == Enum_Stance::Prone)
+	{
+		float ActiveAcceleration = ProneMaxAcceleration;
+		if (CharacterMovement->Velocity.Size2D() > 15.f && HasMovementInputVector())
+		{
+			FVector InputDirection = Character->GetPendingMovementInputVector().GetSafeNormal2D();
+			FRotator TargetRotation = UKismetMathLibrary::MakeRotFromX(InputDirection);
+			float DeltaYaw = FMath::Abs(UKismetMathLibrary::NormalizedDeltaRotator(TargetRotation, Mesh->GetSocketRotation("head")).Yaw);
+
+			if (DeltaYaw > 0.1f)
+			{
+				
+				ActiveAcceleration = UKismetMathLibrary::MapRangeClamped(
+					DeltaYaw,
+					0.f, 180.f,
+					ProneMaxAcceleration,
+					ProneMinAcceleration
+				);
+			}
+		}
+		return ActiveAcceleration;
+	}
 	if (Gait == Enum_Gait::Walk || Gait == Enum_Gait::Jog) return WalkAcceleration;
 	return UKismetMathLibrary::MapRangeClamped(
 		CharacterMovement->Velocity.Size2D(), 
