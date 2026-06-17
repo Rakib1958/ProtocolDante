@@ -3,6 +3,7 @@
 #include "Components/ActorComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameplayCameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
@@ -25,173 +26,126 @@ public:
 
 	// ── Initialization ────────────────────────────────────────────────────────
 
-	// Override in Blueprint to assign GameplayCamera asset reference
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GameplayCamera")
-	void SetCameraReference();
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Camera|Init") void SetCameraReference();
+	UFUNCTION(BlueprintCallable, Category = "Camera|Init") void InitCamera(bool bUseGameplayCamera);
 
-	UFUNCTION(BlueprintCallable, Category = "Initialize")
-	void InitCamera(bool bUseGameplayCamera);
-
-	// ── Preset Maps — fill in Blueprint Details panel ─────────────────────────
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-	TMap<FGameplayTag, FStruct_CameraRigParams> BasePresetMap;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-	TMap<FGameplayTag, FStruct_CameraRigOffset> StanceOffsetMap;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets")
-	TMap<FGameplayTag, FStruct_CameraRigOffset> ShoulderOffsetMap;
+	// ── Preset Maps ───────────────────────────────────────────────────────────
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets") TMap<FGameplayTag, FStruct_CameraRigParams> BasePresetMap;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets") TMap<FGameplayTag, FStruct_CameraRigOffset> StanceOffsetMap;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Presets") TMap<FGameplayTag, FStruct_CameraRigOffset> ShoulderOffsetMap;
 
 	// ── Runtime State ─────────────────────────────────────────────────────────
 
-	// Written by Blueprint or interface each tick — drives evaluation
 	UPROPERTY(BlueprintReadWrite, Category = "Camera|State")
 	FStruct_SpringArmCamera DesiredCameraState;
 
-	// True while the notify override layer is blending in or holding
-	UPROPERTY(BlueprintReadOnly, Category = "Camera|State")
-	bool bIsOverrideActive = false;
+	// True while a notify override is active (blending in or holding)
+	// Also checked by Blueprint notify state to guard FPS ignoring
+	UPROPERTY(BlueprintReadOnly, Category = "Camera|State") bool bIsOverrideActive = false;
+	UPROPERTY(BlueprintReadOnly, Category = "Camera|State") bool bIsFPSActive = false;
 
-	// ── Anim-Notify Camera Override ───────────────────────────────────────────
+	// ── Notify Override Interface — called from ANS_CameraOverride ────────────
+	UFUNCTION(BlueprintCallable, Category = "Camera|Notify")
+	void BeginCameraOverride(
+		FVector TargetSocketOffset, FRotator TargetRotation, float TargetFOVDelta,
+		float InterpInSpeed,
+		bool bUseCustomDefault,
+		FVector DefaultSocketOffset, FRotator DefaultRotation, float DefaultFOVDelta,
+		float InterpOutSpeed,
+		bool bForceTPS,
+		bool bIgnoreIfFPS
+	);
 
-	// Called from AnimNotifyState::NotifyBegin (via Blueprint).
-	// DefaultParams   — where to restore to when the notify ends.
-	// TargetParams    — where to interpolate toward right now.
-	UFUNCTION(BlueprintCallable, Category = "Camera|Notify Override")
-	void BeginCameraOverride(FStruct_CameraNotifyParams DefaultParams,
-		FStruct_CameraNotifyParams TargetParams);
+	// NotifyEnd calls this.
+	UFUNCTION(BlueprintCallable, Category = "Camera|Notify") void EndCameraOverride();
 
-	// Called from AnimNotifyState::NotifyEnd (via Blueprint).
-	// Kicks off the interpolation back toward the DefaultParams that were
-	// supplied at BeginCameraOverride; clears the override once settled.
-	UFUNCTION(BlueprintCallable, Category = "Camera|Notify Override")
-	void EndCameraOverride();
+	// NotifyTick calls this — drives the interpolation each frame.
+	UFUNCTION(BlueprintCallable, Category = "Camera|Notify") void UpdateNotifyOverride(float DeltaTime);
 
-	// ── Capsule Z Smoothing ───────────────────────────────────────────────────
+	// ── First Person ──────────────────────────────────────────────────────────
 
-	// How fast the spring arm pivot chases capsule height changes (crouch snap fix)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Smoothing")
-	float CrouchZInterpSpeed = 8.f;
+	UFUNCTION(BlueprintCallable, Category = "Camera|FirstPerson") void SwitchToFPS(bool bEnable);
 
-	// ── Default Values (fallback / initial spring arm setup) ─────────────────
+	// ── Default Values ────────────────────────────────────────────────────────
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float TargetArmLength = 300.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") FVector SpringArmLocation = FVector(0.f, 0.f, 0.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") FRotator SpringArmRotation = FRotator(0.f, 0.f, 0.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float LagSpeed = 10.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float RotationLagSpeed = 10.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float FieldOfView = 90.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float CrouchZInterpSpeed = 8.f;
 
 protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	float TargetArmLength = 300.f;
+	// ── First Person Config ───────────────────────────────────────────────────
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	FVector SpringArmLocation = FVector(0.f, 0.f, 0.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	FRotator SpringArmRotation = FRotator(0.f, 0.f, 0.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	float LagSpeed = 10.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	float RotationLagSpeed = 10.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Default Values")
-	float FieldOfView = 90.f;
-
-	// ── FIRST PERSON CONFIGURATIONS ──────────────────────────────────────────
-
-	/** Forward structural offset from the head bone origin to clear eye/nose mesh geometry. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
-	FVector FPSMeshOffset = FVector(15.f, 0.f, 5.f);
-
-	/** Maximum vertical view ceiling when standing or crouching in FPS (Default: 70 degrees). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
-	float FPSNormalPitchLimit = 70.f;
-
-	/** Tighter vertical view ceiling when flat on stomach to prevent looking through the chest. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
-	float FPSPronePitchLimit = 35.f;
-
-	/** Camera rotation smoothing delay when prone. Lower values make the view feel heavily sluggish. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera | First Person")
-	float FPSProneRotationLag = 3.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|FirstPerson") FVector FPSMeshOffset = FVector(15.f, 0.f, 5.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|FirstPerson") float FPSNormalPitchLimit = 70.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|FirstPerson") float FPSPronePitchLimit = 35.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|FirstPerson") float FPSProneRotationLag = 3.f;
 
 private:
-	// ── Component References ──────────────────────────────────────────────────
+	// ── References ────────────────────────────────────────────────────────────
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) ACharacter* Character = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true")) UCharacterMovementComponent* CharacterMovement = nullptr;
+	UPROPERTY(BlueprintReadWrite, Category = "Camera", meta = (AllowPrivateAccess = "true")) USpringArmComponent* SpringArmRef = nullptr;
+	UPROPERTY(BlueprintReadWrite, Category = "Camera", meta = (AllowPrivateAccess = "true")) UCameraComponent* CameraRef = nullptr;
+	UPROPERTY(BlueprintReadWrite, Category = "Camera", meta = (AllowPrivateAccess = "true")) UCameraComponent* FPSCameraRef = nullptr;
+	UPROPERTY(BlueprintReadWrite, Category = "GameplayCamera", meta = (AllowPrivateAccess = "true")) UGameplayCameraComponent* GameplayCameraRef = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	ACharacter* Character = nullptr;
+	// ── Interpolated Layers ───────────────────────────────────────────────────
 
-	UPROPERTY(BlueprintReadOnly, Category = "References", meta = (AllowPrivateAccess = "true"))
-	UCharacterMovementComponent* CharacterMovement = nullptr;
-
-	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "GameplayCamera")
-	UGameplayCameraComponent* GameplayCameraRef = nullptr;
-
-	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Camera")
-	USpringArmComponent* SpringArmRef = nullptr;
-
-	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Camera")
-	UCameraComponent* CameraRef = nullptr;
-
-	// ── Interpolated State (internal) ─────────────────────────────────────────
-
-	// Current interpolated values for each layer
 	FStruct_CameraRigParams CurrentBase;
 	FStruct_CameraRigOffset CurrentStanceOffset;
 	FStruct_CameraRigOffset CurrentShoulderOffset;
 
-	FGameplayTag LastStanceOffset = FGameplayTag::RequestGameplayTag(TEXT("CameraSystem.Stance.Stand"));
-	bool bIsStanceTransitioning = false;
+	// ── Notify Override — raw fields, no struct ───────────────────────────────
 
-	// Smoothed capsule Z — avoids snap on crouch
+	// Target values (blend toward on begin)
+	FVector  NotifyTargetSocketOffset = FVector::ZeroVector;
+	FRotator NotifyTargetRotation = FRotator::ZeroRotator;
+	float    NotifyTargetFOVDelta = 0.f;
+	float    NotifyInterpInSpeed = 5.f;
+
+	// Default/restore values (blend toward on end)
+	FVector  NotifyDefaultSocketOffset = FVector::ZeroVector;
+	FRotator NotifyDefaultRotation = FRotator::ZeroRotator;
+	float    NotifyDefaultFOVDelta = 0.f;
+	float    NotifyInterpOutSpeed = 3.f;
+
+	// Live interpolated values — applied additively in ApplyToSpringArm
+	FVector  CurrentNotifySocketOffset = FVector::ZeroVector;
+	FRotator CurrentNotifyRotation = FRotator::ZeroRotator;
+	float    CurrentNotifyFOVDelta = 0.f;
+
+	bool bNotifyBlendingIn = false;
+	bool bNotifyBlendingOut = false;
+	bool bForcedTPSFromFPS = false;
+	bool bIgnoreThisNotify = false;
+
+	// ── Stance Z Smoothing ────────────────────────────────────────────────────
+
+	FGameplayTag LastStanceOffset;
+	bool  bIsStanceTransitioning = false;
 	float SmoothedPivotZ = 0.f;
-	bool  bPivotZInitialized = false;
 
+	// ── Fall Feel ─────────────────────────────────────────────────────────────
 	float FallFOVReduction = 0.f;
 	float FallArmReduction = 0.f;
 
-	// ── Notify Override State (internal) ──────────────────────────────────────
-
-	// The two bookend param sets supplied by the AnimNotifyState
-	FStruct_CameraNotifyParams NotifyDefaultParams;   // restore target
-	FStruct_CameraNotifyParams NotifyTargetParams;    // enter target
-
-	// Live interpolated override values — applied additively in ApplyToSpringArm
-	FStruct_CameraNotifyParams CurrentNotifyOverride;
-
-	// True  → interpolating toward NotifyTargetParams  (NotifyBegin)
-	// False → interpolating toward NotifyDefaultParams (NotifyEnd)
-	bool bNotifyBlendingIn = false;
-
-	// Once EndCameraOverride is called we blend back; when close enough we
-	// clear bIsOverrideActive entirely.
-	bool bNotifyBlendingOut = false;
-
 	// ── Private Methods ───────────────────────────────────────────────────────
-
 	void SetReference();
 	void CreateCamera();
 	void InitializeCamera();
 	void CreateGameplayCamera();
 	void InitializeGameplayCamera();
 
-	// Tick sub-steps
 	void EvaluateAndInterpBase(float DeltaTime);
 	void EvaluateAndInterpStanceOffset(float DeltaTime);
 	void EvaluateAndInterpShoulderOffset(float DeltaTime);
 	void UpdateCapsuleZSmoothing(float DeltaTime);
-	void UpdateNotifyOverride(float DeltaTime);
-	void ApplyToSpringArm();
 	void UpdateFallFeel(float DeltaTime);
-
-
-	// first person camera system
-	// In header — private
-	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Camera")
-	UCameraComponent* FPSCameraRef = nullptr;
-
-	bool bIsFPSActive = false;
-
 	void EvaluateAndInterpFPS(float DeltaTime);
-	void SwitchToFPS(bool bEnable);
+	void ApplyToSpringArm();
 
 	void ConfigureFPSViewLimits(bool bIsProne);
 	void ResetCameraManagerLimits();

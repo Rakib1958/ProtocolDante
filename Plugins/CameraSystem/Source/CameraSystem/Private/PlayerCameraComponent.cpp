@@ -4,74 +4,64 @@
 
 UPlayerCameraComponent::UPlayerCameraComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = true; // we need tick to set our camera params smoothly per frame
 }
-
 void UPlayerCameraComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	SetReference();
+	SetReference(); // we store the character reference at first
 }
 
-// ── Tick ─────────────────────────────────────────────────────────────────────
+// ── Tick ──────────────────────────────────────────────────────────────────────
 void UPlayerCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (!IsValid(Character)) return;
-	if (!IsValid(SpringArmRef) || !IsValid(CameraRef) || !IsValid(Character)) return;
+	if (!IsValid(Character) || !IsValid(SpringArmRef) || !IsValid(CameraRef)) return; // early return if the character is not valid yet
+	// also we use this component only for a spring arm camera based setup, the gameplay camera is configured in its own graph
+
+	// Pull desired state from character via interface
 	if (Character->GetClass()->ImplementsInterface(UGameplayCameraInterface::StaticClass()))
 	{
-		bIsOverrideActive = IGameplayCameraInterface::Execute_OverrideBaseCamera(Character);
-		if (bIsOverrideActive)
-		{
-			return;
-		}
+		// If interface signals external override (e.g. gameplay camera rig active) — hand off entirely
+		if (IGameplayCameraInterface::Execute_OverrideBaseCamera(Character))
+			return; // this state is useful for scenerios where we want to use some other view point, like cctv footages or someone else's perspective
+
 		DesiredCameraState = IGameplayCameraInterface::Execute_GetCharacterPropertiesForSpringArmCamera(Character);
-		//bool bWantsFPS = DesiredCameraState.ViewMode == FGameplayTag::RequestGameplayTag("CameraSystem.ViewMode.FirstPerson");
-		//if (bWantsFPS != bIsFPSActive) SwitchToFPS(bWantsFPS);
-
-		//if (bIsFPSActive)
-		//{
-		//	EvaluateAndInterpFPS(DeltaTime); // only FOV interp needed
-		//	return; // skip spring arm pipeline entirely
-		//}
-		//EvaluateAndInterpBase(DeltaTime);
-		//EvaluateAndInterpStanceOffset(DeltaTime);
-		//EvaluateAndInterpShoulderOffset(DeltaTime);
-		//UpdateCapsuleZSmoothing(DeltaTime);
-		//UpdateNotifyOverride(DeltaTime);
-		//if (CharacterMovement->IsFalling()) { UpdateFallFeel(DeltaTime); }
-		//ApplyToSpringArm();
-		// Check our interface dataset tag to see if First Person mode is requested
-		bool bWantsFPS = DesiredCameraState.ViewMode == FGameplayTag::RequestGameplayTag("CameraSystem.ViewMode.FirstPerson");
-
-		if (bWantsFPS)
-		{
-			bIsFPSActive = true;
-			EvaluateAndInterpFPS(DeltaTime);
-		}
-		else
-		{
-			if (bIsFPSActive)
-			{
-				// Clean restoration handshake when dropping back out to third-person
-				bIsFPSActive = false;
-				ResetCameraManagerLimits();
-				SpringArmRef->TargetOffset = FVector::ZeroVector;
-				SpringArmRef->bEnableCameraRotationLag = true;
-				CameraRef->SetRelativeLocation(FVector::ZeroVector);
-			}
-
-			EvaluateAndInterpBase(DeltaTime);
-			EvaluateAndInterpStanceOffset(DeltaTime);
-			EvaluateAndInterpShoulderOffset(DeltaTime);
-			UpdateCapsuleZSmoothing(DeltaTime);
-			ApplyToSpringArm();
-		}
 	}
+
+	// FPS path
+	bool bWantsFPS = DesiredCameraState.ViewMode ==
+		FGameplayTag::RequestGameplayTag("CameraSystem.ViewMode.FirstPerson");
+
+	if (bWantsFPS)
+	{
+		if (!bIsFPSActive) SwitchToFPS(true);
+		EvaluateAndInterpFPS(DeltaTime);
+		return; // skip TPS evaluation entirely
+	}
+	else if (bIsFPSActive)
+	{
+		// Leaving FPS — restore TPS state cleanly
+		SwitchToFPS(false);
+	}
+
+	// TPS path — stacked layer evaluation
+	EvaluateAndInterpBase(DeltaTime);
+	EvaluateAndInterpStanceOffset(DeltaTime);
+	EvaluateAndInterpShoulderOffset(DeltaTime);
+
+
+	if (bIsOverrideActive || bNotifyBlendingOut)
+	{
+		UpdateNotifyOverride(DeltaTime);
+	}
+	UpdateCapsuleZSmoothing(DeltaTime);
+	UpdateFallFeel(DeltaTime);
+	ApplyToSpringArm();
 }
 
-// ── Tick Sub-steps ────────────────────────────────────────────────────────────
+// ── Layer Evaluation ──────────────────────────────────────────────────────────
+
 void UPlayerCameraComponent::EvaluateAndInterpBase(float DeltaTime)
 {
 	const FStruct_CameraRigParams* Target = BasePresetMap.Find(DesiredCameraState.BasePreset);
@@ -101,17 +91,57 @@ void UPlayerCameraComponent::EvaluateAndInterpShoulderOffset(float DeltaTime)
 	const FStruct_CameraRigOffset* Target = ShoulderOffsetMap.Find(DesiredCameraState.ShoulderOffset);
 	if (!Target) return;
 
-	float Speed = Target->InterpSpeed;
-	CurrentShoulderOffset.SocketOffsetDelta = FMath::VInterpTo(CurrentShoulderOffset.SocketOffsetDelta, Target->SocketOffsetDelta, DeltaTime, Speed);
-	// Shoulder only ever shifts socket offset — pivot and arm length untouched
+	CurrentShoulderOffset.SocketOffsetDelta = FMath::VInterpTo(
+		CurrentShoulderOffset.SocketOffsetDelta,
+		Target->SocketOffsetDelta,
+		DeltaTime,
+		Target->InterpSpeed
+	);
+}
+
+void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
+{
+	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+	if (!IsValid(Capsule)) return;
+
+	// Detect stance change — only smooth during transitions
+	if (DesiredCameraState.StanceOffset != LastStanceOffset)
+	{
+		LastStanceOffset = DesiredCameraState.StanceOffset;
+		bIsStanceTransitioning = true;
+		SmoothedPivotZ = Capsule->GetScaledCapsuleHalfHeight(); // seed from current
+	}
+
+	if (!bIsStanceTransitioning) return;
+
+	float TargetZ = Capsule->GetScaledCapsuleHalfHeight();
+	SmoothedPivotZ = FMath::FInterpTo(SmoothedPivotZ, TargetZ, DeltaTime, CrouchZInterpSpeed);
+
+	if (FMath::IsNearlyEqual(SmoothedPivotZ, TargetZ, 0.5f))
+	{
+		SmoothedPivotZ = TargetZ;
+		bIsStanceTransitioning = false;
+	}
+}
+void UPlayerCameraComponent::UpdateFallFeel(float DeltaTime)
+{
+	if (!IsValid(CharacterMovement)) return;
+
+	float FallVelocity = CharacterMovement->Velocity.Z;
+
+	float FallT = FMath::Clamp(FMath::GetMappedRangeValueClamped(
+		FVector2D(-600.f, -2400.f), FVector2D(0.f, 1.f), FallVelocity), 0.f, 1.f);
+
+	FallFOVReduction = FMath::FInterpTo(FallFOVReduction, FMath::Lerp(0.f, -15.f, FallT), DeltaTime, 1.5f);
+	FallArmReduction = FMath::FInterpTo(FallArmReduction, FMath::Lerp(0.f, -60.f, FallT), DeltaTime, 1.5f);
 }
 void UPlayerCameraComponent::ApplyToSpringArm()
 {
-	// ── Layer 1: base + stance + shoulder ────────────────────────────────────
+	// ── Combine base + stance + shoulder ──────────────────────────────────────
 	float FinalArmLength = FMath::Max(
 		CurrentBase.TargetArmLength
 		+ CurrentStanceOffset.ArmLengthDelta
-		- FallArmReduction,
+		+ FallArmReduction,
 		0.f
 	);
 
@@ -120,36 +150,30 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 		+ CurrentShoulderOffset.SocketOffsetDelta;
 
 	FVector FinalPivot = CurrentBase.PivotOffset + CurrentStanceOffset.PivotOffsetDelta;
-
-	// Z smoothing only adds a correction during stance transitions
-	// so capsule shrink/grow doesn't snap the camera
 	if (bIsStanceTransitioning)
 	{
-		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
-		if (IsValid(Capsule))
-		{
-			float ActualCapsuleZ = Capsule->GetScaledCapsuleHalfHeight();
-			float ZCorrection = SmoothedPivotZ - ActualCapsuleZ;
-			FinalPivot.Z += ZCorrection;
-		}
+		float ActualCapsuleZ = Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		FinalPivot.Z += SmoothedPivotZ - ActualCapsuleZ;
 	}
 
-	float FinalFOV = CurrentBase.FieldOfView
-		+ CurrentStanceOffset.FOVDelta
-		+ FallFOVReduction;  // additive, negative = zoom in
+	float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta + FallFOVReduction;
 
-	// ── Layer 2: anim-notify override (additive on top) ───────────────────────
-	if (bIsOverrideActive)
+	// ── Apply notify override additively on top ───────────────────────────────
+	if (bIsOverrideActive || bNotifyBlendingOut)
 	{
-		FinalSocketOffset += CurrentNotifyOverride.SocketOffsetDelta;
-		FinalFOV += CurrentNotifyOverride.FOVDelta;
-		// Rotation delta is applied as an additive offset to the spring arm's
-		// current relative rotation so it stacks cleanly with pawn control rotation
-		FRotator CurrentRel = SpringArmRef->GetRelativeRotation();
-		SpringArmRef->SetRelativeRotation(CurrentRel + CurrentNotifyOverride.RotationDelta);
+		FinalSocketOffset += CurrentNotifySocketOffset;
+		FinalFOV += CurrentNotifyFOVDelta;
+
+		// FIX 2: Apply custom notify rotations directly to the Camera component node instead 
+		// of adding them to the Spring Arm, eliminating infinite spinning bugs.
+		CameraRef->SetRelativeRotation(CurrentNotifyRotation);
+	}
+	else
+	{
+		CameraRef->SetRelativeRotation(FRotator::ZeroRotator);
 	}
 
-	// ── Write to components ───────────────────────────────────────────────────
+	// ── Write ─────────────────────────────────────────────────────────────────
 	SpringArmRef->TargetArmLength = FinalArmLength;
 	SpringArmRef->SocketOffset = FinalSocketOffset;
 	SpringArmRef->SetRelativeLocation(FinalPivot);
@@ -158,209 +182,199 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 	CameraRef->FieldOfView = FinalFOV;
 }
 
-// ── Initialization ────────────────────────────────────────────────────────────
-void UPlayerCameraComponent::SetReference()
+// ── Notify Override ───────────────────────────────────────────────────────────
+void UPlayerCameraComponent::BeginCameraOverride(
+	FVector TargetSocketOffset, FRotator TargetRotation, float TargetFOVDelta,
+	float InterpInSpeed,
+	bool bUseCustomDefault,
+	FVector DefaultSocketOffset, FRotator DefaultRotation, float DefaultFOVDelta,
+	float InterpOutSpeed,
+	bool bForceTPS,
+	bool bIgnoreIfFPS)
 {
-	Character = Cast<ACharacter>(GetOwner());
-	if (IsValid(Character))
+	// If told to ignore while in FPS — flag and return
+	if (bIgnoreIfFPS && bIsFPSActive)
 	{
-		CharacterMovement = Character->GetCharacterMovement();
+		bIgnoreThisNotify = true;
+		return;
 	}
-}
-void UPlayerCameraComponent::UpdateCapsuleZSmoothing(float DeltaTime)
-{
-	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
-	if (!IsValid(Capsule)) return;
-	if (DesiredCameraState.StanceOffset != LastStanceOffset)
+	bIgnoreThisNotify = false;
+
+	// Store target
+	NotifyTargetSocketOffset = TargetSocketOffset;
+	NotifyTargetRotation = TargetRotation;
+	NotifyTargetFOVDelta = TargetFOVDelta;
+	NotifyInterpInSpeed = InterpInSpeed;
+
+	// Store restore target
+	if (bUseCustomDefault)
 	{
-		LastStanceOffset = DesiredCameraState.StanceOffset;
-		bIsStanceTransitioning = true;
-	}
-	if (bIsStanceTransitioning)
-	{
-		float TargetZ = Capsule->GetScaledCapsuleHalfHeight();
-
-		SmoothedPivotZ = FMath::FInterpTo(SmoothedPivotZ, TargetZ, DeltaTime, CrouchZInterpSpeed);
-
-		// Stop transitioning when close enough
-		if (FMath::IsNearlyEqual(SmoothedPivotZ, TargetZ, 0.5f))
-		{
-			SmoothedPivotZ = TargetZ;
-			bIsStanceTransitioning = false;
-		}
-	}
-}
-
-// ── Anim-Notify Camera Override ───────────────────────────────────────────────
-void UPlayerCameraComponent::BeginCameraOverride(FStruct_CameraNotifyParams DefaultParams,
-	FStruct_CameraNotifyParams TargetParams)
-{
-	NotifyDefaultParams = DefaultParams;
-	NotifyTargetParams = TargetParams;
-	bIsOverrideActive = true;
-	bNotifyBlendingIn = true;
-	bNotifyBlendingOut = false;
-}
-void UPlayerCameraComponent::EndCameraOverride()
-{
-	// Begin blending back toward the default params supplied at notify begin.
-	// bIsOverrideActive stays true until UpdateNotifyOverride confirms it settled.
-	bNotifyBlendingIn = false;
-	bNotifyBlendingOut = true;
-}
-void UPlayerCameraComponent::UpdateNotifyOverride(float DeltaTime)
-{
-	if (!bIsOverrideActive) return;
-
-	// Choose the target for this frame
-	const FStruct_CameraNotifyParams& Target =
-		bNotifyBlendingIn ? NotifyTargetParams : NotifyDefaultParams;
-
-	float Speed = Target.InterpSpeed;
-
-	CurrentNotifyOverride.SocketOffsetDelta = FMath::VInterpTo(
-		CurrentNotifyOverride.SocketOffsetDelta, Target.SocketOffsetDelta, DeltaTime, Speed);
-
-	CurrentNotifyOverride.RotationDelta = FMath::RInterpTo(
-		CurrentNotifyOverride.RotationDelta, Target.RotationDelta, DeltaTime, Speed);
-
-	CurrentNotifyOverride.FOVDelta = FMath::FInterpTo(
-		CurrentNotifyOverride.FOVDelta, Target.FOVDelta, DeltaTime, Speed);
-
-	// Once blending out, check if we've settled back to zero/default
-	if (bNotifyBlendingOut)
-	{
-		bool bSocketSettled = CurrentNotifyOverride.SocketOffsetDelta.Equals(Target.SocketOffsetDelta, 0.5f);
-		bool bRotationSettled = CurrentNotifyOverride.RotationDelta.Equals(Target.RotationDelta, 0.1f);
-		bool bFOVSettled = FMath::IsNearlyEqual(CurrentNotifyOverride.FOVDelta, Target.FOVDelta, 0.1f);
-
-		if (bSocketSettled && bRotationSettled && bFOVSettled)
-		{
-			// Fully restored — clear everything so normal evaluation resumes
-			CurrentNotifyOverride = FStruct_CameraNotifyParams();
-			bIsOverrideActive = false;
-			bNotifyBlendingOut = false;
-		}
-	}
-}
-void UPlayerCameraComponent::UpdateFallFeel(float DeltaTime)
-{
-	if (!IsValid(Character)) return;
-
-	float FallVelocity = Character->GetCharacterMovement()->Velocity.Z;
-
-	// Only zoom on significant downward velocity (below -600 cm/s)
-	float FallT = FMath::Clamp(
-		FMath::GetMappedRangeValueClamped(
-			FVector2D(-600.f, -2400.f),  // velocity range
-			FVector2D(0.f, 1.f),          // normalized
-			FallVelocity
-		), 0.f, 1.f
-	);
-	/*if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("FallT, %f"), FallT));
-	}*/
-	// Target FOV reduction — max 15 degrees zoom at terminal velocity
-	float TargetFOVReduction = FMath::Lerp(0.f, -15.f, FallT);
-	FallFOVReduction = FMath::FInterpTo(
-		FallFOVReduction, TargetFOVReduction, DeltaTime, 10.f // slow in
-	);
-
-	// Also tighten arm length slightly — "death creeping in" feel
-	float TargetArmReduction = FMath::Lerp(0.f, -60.f, FallT);
-	FallArmReduction = FMath::FInterpTo(
-		FallArmReduction, TargetArmReduction, DeltaTime, 10.f
-	);
-}
-//void UPlayerCameraComponent::EvaluateAndInterpFPS(float DeltaTime)
-//{
-//	// Only thing to drive in FPS is FOV — head bone handles position/rotation
-//	const FStruct_CameraRigParams* Target = BasePresetMap.Find(DesiredCameraState.BasePreset);
-//	if (!Target) return;
-//	float CurrentFOV = FPSCameraRef->FieldOfView;
-//	FPSCameraRef->FieldOfView = FMath::FInterpTo(CurrentFOV, Target->FieldOfView, DeltaTime, Target->InterpSpeed);
-//
-//}
-void UPlayerCameraComponent::EvaluateAndInterpFPS(float DeltaTime)
-{
-	USkeletalMeshComponent* CharacterMesh = Character->GetMesh();
-	if (!IsValid(CharacterMesh) || !IsValid(CharacterMovement)) return;
-
-	// FORCE STRAFE/AIM ROTATION RULE:
-	// FPS view lines demand that the capsule forward vector snaps to the camera yaw view axis instantly
-	CharacterMovement->bOrientRotationToMovement = false;
-	CharacterMovement->bUseControllerDesiredRotation = true;
-
-	// Determine stance metrics straight from your movement component layers
-	//bool bIsProne = (CharacterMovement->MaxWalkSpeed == CalculateMaxSpeedProned());
-
-	// Dynamically refresh our looking threshold limits based on stance
-	ConfigureFPSViewLimits(DesiredCameraState.StanceOffset == FGameplayTag::RequestGameplayTag("LocomotionSystem.Stance.Prone"));
-
-	if (DesiredCameraState.StanceOffset == FGameplayTag::RequestGameplayTag("LocomotionSystem.Stance.Prone"))
-	{
-		// ─── STANCE A: FPS PRONE (HEAVY INTERACTION SLOWDOWN) ───
-		// Turn on rotation lag on the Spring Arm. The controller moves instantly, 
-		// but the spring arm lags behind, creating a heavy, panning camera feel.
-		SpringArmRef->bEnableCameraRotationLag = true;
-		SpringArmRef->CameraRotationLagSpeed = FPSProneRotationLag;
-
-		// COLLISION ANTI-CLIP GUARD: 
-		// Snap the spring arm target length to absolute 0 to move the boom point inside the capsule core.
-		SpringArmRef->TargetArmLength = 0.f;
-		SpringArmRef->TargetOffset = FVector::ZeroVector;
-
-		// Pin the camera directly to the head bone coordinate matrix, but push it slightly 
-		// forward via our offset variable to clear out face geometry artifact overlaps.
-		FVector EyeLocation = CharacterMesh->GetSocketLocation(TEXT("head"));
-		FVector ForwardProjectedOffset = Character->GetActorForwardVector() * FPSMeshOffset.X;
-		FVector VerticalProjectedOffset = Character->GetActorUpVector() * FPSMeshOffset.Z;
-
-		FVector FinalSanitizedLocation = EyeLocation + ForwardProjectedOffset + VerticalProjectedOffset;
-
-		// Shift the rendering camera position directly to world space safety limits
-		CameraRef->SetWorldLocation(FinalSanitizedLocation);
+		NotifyDefaultSocketOffset = DefaultSocketOffset;
+		NotifyDefaultRotation = DefaultRotation;
+		NotifyDefaultFOVDelta = DefaultFOVDelta;
 	}
 	else
 	{
-		// ─── STANCE B: FPS NORMAL (LAG-FREE RESPONSIVENESS) ───
-		// Strip all lag filters out entirely so the viewpoint matches raw hardware mouse delta tracks instantly
+		// Zero restore — ApplyToSpringArm naturally returns to rig values
+		NotifyDefaultSocketOffset = FVector::ZeroVector;
+		NotifyDefaultRotation = FRotator::ZeroRotator;
+		NotifyDefaultFOVDelta = 0.f;
+	}
+	NotifyInterpOutSpeed = InterpOutSpeed;
+
+	bNotifyBlendingIn = true;
+	bNotifyBlendingOut = false;
+	bIsOverrideActive = true;
+
+	// FPS handling — temporarily drop to TPS if requested
+	if (bIsFPSActive && bForceTPS)
+	{
+		bForcedTPSFromFPS = true;
+		SwitchToFPS(false);
+	}
+}
+void UPlayerCameraComponent::EndCameraOverride()
+{
+	if (bIgnoreThisNotify) return;
+
+	bNotifyBlendingIn = false;
+	bNotifyBlendingOut = true;
+	// bIsOverrideActive stays true until UpdateNotifyOverride confirms settle
+}
+void UPlayerCameraComponent::UpdateNotifyOverride(float DeltaTime)
+{
+	if (bIgnoreThisNotify) return;
+	if (!bNotifyBlendingIn && !bNotifyBlendingOut) return;
+
+	// Choose destination
+	FVector  DestSocket = bNotifyBlendingIn ? NotifyTargetSocketOffset : NotifyDefaultSocketOffset;
+	FRotator DestRot = bNotifyBlendingIn ? NotifyTargetRotation : NotifyDefaultRotation;
+	float    DestFOV = bNotifyBlendingIn ? NotifyTargetFOVDelta : NotifyDefaultFOVDelta;
+	float    Speed = bNotifyBlendingIn ? NotifyInterpInSpeed : NotifyInterpOutSpeed;
+
+	CurrentNotifySocketOffset = FMath::VInterpTo(CurrentNotifySocketOffset, DestSocket, DeltaTime, Speed);
+	CurrentNotifyRotation = FMath::RInterpTo(CurrentNotifyRotation, DestRot, DeltaTime, Speed);
+	CurrentNotifyFOVDelta = FMath::FInterpTo(CurrentNotifyFOVDelta, DestFOV, DeltaTime, Speed);
+
+	// Check settle on blend-out
+	if (bNotifyBlendingOut)
+	{
+		bool bSocketSettled = CurrentNotifySocketOffset.Equals(DestSocket, 0.5f);
+		bool bRotSettled = CurrentNotifyRotation.Equals(DestRot, 0.1f);
+		bool bFOVSettled = FMath::IsNearlyEqual(CurrentNotifyFOVDelta, DestFOV, 0.1f);
+
+		if (bSocketSettled && bRotSettled && bFOVSettled)
+		{
+			// Reset all override state
+			CurrentNotifySocketOffset = FVector::ZeroVector;
+			CurrentNotifyRotation = FRotator::ZeroRotator;
+			CurrentNotifyFOVDelta = 0.f;
+			bNotifyBlendingOut = false;
+			bIsOverrideActive = false;
+
+			// Restore FPS if we were forced out
+			if (bForcedTPSFromFPS)
+			{
+				bForcedTPSFromFPS = false;
+				SwitchToFPS(true);
+			}
+		}
+	}
+}
+
+// ── First Person ──────────────────────────────────────────────────────────────
+void UPlayerCameraComponent::EvaluateAndInterpFPS(float DeltaTime)
+{
+	if (!IsValid(Character->GetMesh()) || !IsValid(CharacterMovement)) return;
+
+	CharacterMovement->bOrientRotationToMovement = false;
+	CharacterMovement->bUseControllerDesiredRotation = true; // default, but a GASP-like setup requires you to define again inside the rotation tick
+
+	bool bIsProne = DesiredCameraState.StanceOffset ==
+		FGameplayTag::RequestGameplayTag("CameraSystem.Stance.Prone");
+
+	ConfigureFPSViewLimits(bIsProne); // normal fps and prone fps is different
+
+	FVector EyeLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
+	FVector Forward = Character->GetActorForwardVector();
+	FVector Up = Character->GetActorUpVector();
+
+	if (bIsProne)
+	{
+		SpringArmRef->bEnableCameraRotationLag = true;
+		SpringArmRef->CameraRotationLagSpeed = FPSProneRotationLag;
+		SpringArmRef->TargetArmLength = 0.f;
+		SpringArmRef->TargetOffset = FVector::ZeroVector;
+
+		FVector FinalLoc = EyeLocation
+			+ Forward * FPSMeshOffset.X
+			+ Up * FPSMeshOffset.Z;
+		CameraRef->SetWorldLocation(FinalLoc);
+	}
+	else
+	{
 		SpringArmRef->bEnableCameraRotationLag = false;
 		SpringArmRef->TargetArmLength = 0.f;
 		SpringArmRef->TargetOffset = FVector::ZeroVector;
 
-		// Clean programmatic lock right onto the eye line matrix
-		FVector EyeLocation = CharacterMesh->GetSocketLocation(TEXT("head"));
-		FVector ForwardProjectedOffset = Character->GetActorForwardVector() * FPSMeshOffset.X;
-
-		CameraRef->SetWorldLocation(EyeLocation + ForwardProjectedOffset);
+		CameraRef->SetWorldLocation(EyeLocation + Forward * FPSMeshOffset.X);
 	}
 
-	// Dynamic Field of View adjustment integration
 	CameraRef->FieldOfView = FMath::FInterpTo(CameraRef->FieldOfView, 90.f, DeltaTime, 10.f);
 }
 void UPlayerCameraComponent::SwitchToFPS(bool bEnable)
 {
 	bIsFPSActive = bEnable;
+	// tps to fps
 	if (bEnable)
 	{
-		CameraRef->Deactivate();
-		FPSCameraRef->Activate();
-		// kill spring arm lag so it doesn't drift while inactive
-		SpringArmRef->bEnableCameraLag = false;
+		SpringArmRef->bEnableCameraLag = false; // we dont want camera sway while looking in fps
 		SpringArmRef->bEnableCameraRotationLag = false;
 	}
-	else
+	else // fps to tps
 	{
-		FPSCameraRef->Deactivate();
-		CameraRef->Activate();
 		SpringArmRef->bEnableCameraLag = true;
 		SpringArmRef->bEnableCameraRotationLag = true;
-		// Seed CurrentBase so third person doesn't pop on re-entry
+		SpringArmRef->TargetOffset = FVector::ZeroVector;
+		SpringArmRef->TargetArmLength = CurrentBase.TargetArmLength;
+		CameraRef->SetRelativeLocation(FVector::ZeroVector);
+		CameraRef->SetRelativeRotation(FRotator::ZeroRotator);
+		if (IsValid(Character->GetCapsuleComponent())) // very important, while proning, the character should always first person, at least in my game, so stance transitioning will be true then and if we dont guard this, there will be an unnecessary offset while getting up from prone
+		{
+			SmoothedPivotZ = Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			bIsStanceTransitioning = false; 
+		}
+		LastStanceOffset = DesiredCameraState.StanceOffset;
 		if (const FStruct_CameraRigParams* Target = BasePresetMap.Find(DesiredCameraState.BasePreset))
-			CurrentBase = *Target;
+			CurrentBase = *Target; // after that we reselect our current stance, the tick will be running any way, so we dont need to think much here
+		
 	}
+}
+void UPlayerCameraComponent::ConfigureFPSViewLimits(bool bIsProne)
+{
+	APlayerController* PC = Cast<APlayerController>(Character->GetController());
+	if (!IsValid(PC) || !IsValid(PC->PlayerCameraManager)) return;
+
+	float Limit = bIsProne ? FPSPronePitchLimit : FPSNormalPitchLimit; // if the character is proned, we need to limit their max pitch, no one on their right mind would do yoga 
+	PC->PlayerCameraManager->ViewPitchMin = -Limit;
+	PC->PlayerCameraManager->ViewPitchMax = Limit;
+}
+void UPlayerCameraComponent::ResetCameraManagerLimits()
+{
+	APlayerController* PC = Cast<APlayerController>(Character->GetController());
+	if (!IsValid(PC) || !IsValid(PC->PlayerCameraManager)) return;
+
+	PC->PlayerCameraManager->ViewPitchMin = -89.9f;
+	PC->PlayerCameraManager->ViewPitchMax = 89.9f;
+}
+
+// ── Initialization ────────────────────────────────────────────────────────────
+
+void UPlayerCameraComponent::SetReference()
+{
+	Character = Cast<ACharacter>(GetOwner());
+	if (IsValid(Character))
+		CharacterMovement = Character->GetCharacterMovement();
 }
 void UPlayerCameraComponent::InitCamera(bool bUseGameplayCamera)
 {
@@ -380,24 +394,31 @@ void UPlayerCameraComponent::InitCamera(bool bUseGameplayCamera)
 }
 void UPlayerCameraComponent::SetCameraReference_Implementation()
 {
-	// Override in Blueprint to assign GameplayCamera asset
+	// Override in Blueprint to assign GameplayCamera asset after creation
 }
+
+// springarm camera initialization
 void UPlayerCameraComponent::CreateCamera()
 {
 	SpringArmRef = NewObject<USpringArmComponent>(GetOwner(), TEXT("CameraBoom"));
-	SpringArmRef->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-	SpringArmRef->RegisterComponent();
+	SpringArmRef->AttachToComponent(
+		Character->GetRootComponent(),
+		FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	SpringArmRef->RegisterComponent(); // first create the springarm
 
 	CameraRef = NewObject<UCameraComponent>(GetOwner(), TEXT("Camera"));
-	CameraRef->AttachToComponent(SpringArmRef, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("SpringEndPoint"));
-	CameraRef->RegisterComponent();
-	// FPS camera — attaches to head bone, inactive by default
+	CameraRef->AttachToComponent(
+		SpringArmRef,
+		FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+		FName("SpringEndPoint"));
+	CameraRef->RegisterComponent(); // then create the camera, both of these are essential for third persion POV
+
+	// FPS camera — attaches to head socket, inactive by default, so we dont necessarily need a springarm
 	FPSCameraRef = NewObject<UCameraComponent>(GetOwner(), TEXT("FPSCamera"));
 	FPSCameraRef->AttachToComponent(
 		Character->GetMesh(),
 		FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-		FName("head")   // post-Control Rig socket
-	);
+		FName("head"));
 	FPSCameraRef->RegisterComponent();
 	FPSCameraRef->bAutoActivate = false;
 	FPSCameraRef->bUsePawnControlRotation = true;
@@ -405,7 +426,7 @@ void UPlayerCameraComponent::CreateCamera()
 void UPlayerCameraComponent::InitializeCamera()
 {
 	if (!IsValid(SpringArmRef) || !IsValid(CameraRef)) return;
-
+	// give some default believable values for the springarm camera to spawn in the correct place
 	SpringArmRef->SetRelativeLocation(SpringArmLocation);
 	SpringArmRef->SetRelativeRotation(SpringArmRotation);
 	SpringArmRef->bUsePawnControlRotation = true;
@@ -414,18 +435,31 @@ void UPlayerCameraComponent::InitializeCamera()
 	SpringArmRef->bEnableCameraRotationLag = true;
 	SpringArmRef->CameraLagSpeed = LagSpeed;
 	SpringArmRef->CameraRotationLagSpeed = RotationLagSpeed;
-	SpringArmRef->bDoCollisionTest = true;  // use built-in spring arm collision probe
+	SpringArmRef->bDoCollisionTest = true;
 
 	CameraRef->FieldOfView = FieldOfView;
 	CameraRef->bAutoActivate = true;
 
-	// Seed interp state with defaults so first frame has no pop
+	// prevents pop on first frame, we dont explicitly set positions to the camera. rather we set a target point and in the tick we slowly interpolate the current position to the target positon
 	CurrentBase.TargetArmLength = TargetArmLength;
 	CurrentBase.PivotOffset = SpringArmLocation;
 	CurrentBase.FieldOfView = FieldOfView;
 	CurrentBase.LagSpeed = LagSpeed;
 	CurrentBase.RotationLagSpeed = RotationLagSpeed;
+
+	// forces PSO compilation during init rather than on first FPS switch, if you dont use it then on the very first time you turn on fps camera, the game freezes for a few seconds
+	if (IsValid(FPSCameraRef))
+	{
+		FPSCameraRef->Activate(true);
+		FPSCameraRef->Deactivate();
+	}
+
+	// Pre-evaluate spring arm to eliminate deferred init cost on first FPS switch
+	SpringArmRef->TargetArmLength = TargetArmLength;
+	SpringArmRef->SocketOffset = FVector::ZeroVector;
 }
+
+// gameplay camera initialization
 void UPlayerCameraComponent::CreateGameplayCamera()
 {
 	if (!IsValid(GameplayCameraRef))
@@ -433,8 +467,11 @@ void UPlayerCameraComponent::CreateGameplayCamera()
 		GameplayCameraRef = NewObject<UGameplayCameraComponent>(GetOwner(), TEXT("GameplayCamera"));
 		GameplayCameraRef->bAutoActivate = false;
 	}
-	GameplayCameraRef->AttachToComponent(Character->GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	GameplayCameraRef->AttachToComponent(
+		Character->GetMesh(),
+		FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 	GameplayCameraRef->RegisterComponent();
+	PrimaryComponentTick.bCanEverTick = false; // we dont need to uselessly run tick for gameplay camera system , it has its own built in ticking
 	SetCameraReference();
 }
 void UPlayerCameraComponent::InitializeGameplayCamera()
@@ -443,35 +480,5 @@ void UPlayerCameraComponent::InitializeGameplayCamera()
 	GameplayCameraRef->SetRelativeLocation(FVector(0.f, 0.f, 100.f));
 	GameplayCameraRef->SetRelativeRotation(FRotator(0.f, 90.f, 0.f));
 	GameplayCameraRef->ActivateCameraForPlayerController(
-		Cast<APlayerController>(Character->GetController())
-	);
-}
-
-
-// first person
-void UPlayerCameraComponent::ConfigureFPSViewLimits(bool bIsProne)
-{
-	if (!IsValid(Character)) return;
-
-	APlayerController* PC = Cast<APlayerController>(Character->GetController());
-	if (PC && PC->PlayerCameraManager)
-	{
-		float TargetLimit = bIsProne ? FPSPronePitchLimit : FPSNormalPitchLimit;
-
-		// Map symmetrical constraints cleanly around the world horizon line
-		PC->PlayerCameraManager->ViewPitchMin = -TargetLimit;
-		PC->PlayerCameraManager->ViewPitchMax = TargetLimit;
-	}
-}
-void UPlayerCameraComponent::ResetCameraManagerLimits()
-{
-	if (!IsValid(Character)) return;
-
-	APlayerController* PC = Cast<APlayerController>(Character->GetController());
-	if (PC && PC->PlayerCameraManager)
-	{
-		// Restore standard engine default view angles (Full 90 degrees up/down)
-		PC->PlayerCameraManager->ViewPitchMin = -89.9f;
-		PC->PlayerCameraManager->ViewPitchMax = 89.9f;
-	}
+		Cast<APlayerController>(Character->GetController()));
 }

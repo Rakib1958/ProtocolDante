@@ -159,4 +159,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SpringArm Camera")
 	bool OverrideBaseCamera();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SpringArm Camera")
+	void ActivateFirstPersonCamera(bool bActivate);
 };

@@ -156,13 +156,13 @@ void ULocomotionComponent::TickStanceTransition(float DeltaTime)
 	Mesh->SetRelativeLocation(MeshRelativeLocation);
 }
 // simple debug system
-void ULocomotionComponent::DebugPrint(FString text, FColor color, float duration)
-{
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, duration, color, text);
-	}
-}
+//void ULocomotionComponent::DebugPrint(FString text, FColor color, float duration)
+//{
+//	if (GEngine)
+//	{
+//		GEngine->AddOnScreenDebugMessage(-1, duration, color, text);
+//	}
+//}
 // necessary conditions
 bool ULocomotionComponent::HasMovementInputVector()
 {
@@ -171,14 +171,17 @@ bool ULocomotionComponent::HasMovementInputVector()
 bool ULocomotionComponent::CanSprint() const
 {
 	if (!bIsValidCharacter) return false;
-	return CharacterInputState.WantsToRun &&
+	return CharacterInputState.WantsToSprint &&
 		(CharacterMovement->bOrientRotationToMovement ||
-			((UKismetMathLibrary::NormalizedDeltaRotator(Character->GetActorRotation(),
-				UKismetMathLibrary::MakeRotFromX(Character->IsLocallyControlled() ? Character->GetPendingMovementInputVector() : CharacterMovement->GetCurrentAcceleration())).Yaw) < 55.f));
+			(FMath::Abs((UKismetMathLibrary::NormalizedDeltaRotator(Character->GetActorRotation(),
+				UKismetMathLibrary::MakeRotFromX(
+					Character->IsLocallyControlled() ?
+					Character->GetPendingMovementInputVector() :
+					CharacterMovement->GetCurrentAcceleration()))).Yaw) < 55.f));
 }
 bool ULocomotionComponent::IsSprinting()
 {
-	return CharacterInputState.WantsToRun && CharacterMovement->Velocity.SizeSquared2D() > 0.f;
+	return CharacterInputState.WantsToSprint && CharacterMovement->Velocity.SizeSquared2D() > 0.f;
 }
 bool ULocomotionComponent::CanStandFromProne() const
 {
@@ -203,6 +206,72 @@ bool ULocomotionComponent::CanStandFromCrouch() const
 	Params.AddIgnoredActor(Character);
 	return !Character->GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
 }
+
+// ragdoll system
+void ULocomotionComponent::StartRagdoll_Implementation()
+{
+	if (!bIsValidCharacter) return;
+	CharacterMovement->SetMovementMode(EMovementMode::MOVE_None);
+	SetMovementMode(Enum_MovementMode::Ragdoll);
+	CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Mesh->SetCollisionObjectType(ECollisionChannel::ECC_PhysicsBody);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	Mesh->SetAllBodiesBelowSimulatePhysics(PelvisBone, true, true);
+	MainAnimInstance->Montage_Stop(0.2f);
+}
+void ULocomotionComponent::StopRagdoll_Implementation()
+{
+	if (!bIsValidCharacter) return;
+	MainAnimInstance->SavePoseSnapshot(SnapshotName);
+	if (bRagdollOnGround)
+	{
+		CharacterMovement->SetMovementMode(EMovementMode::MOVE_Walking);
+		MainAnimInstance->Montage_Play(GetRagdollGetUpMontage());
+	}
+	else {
+		CharacterMovement->SetMovementMode(EMovementMode::MOVE_Falling);
+	}
+	CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	Mesh->SetCollisionObjectType(ECollisionChannel::ECC_Pawn);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Mesh->SetAllBodiesSimulatePhysics(false);
+}
+void ULocomotionComponent::UpdateRagdoll_Implementation()
+{
+	if (!bIsValidCharacter) return;
+	LastRagdollVelocity = Mesh->GetPhysicsLinearVelocity(FName("root"));
+	Mesh->SetAllMotorsAngularDriveParams(UKismetMathLibrary::MapRangeClamped(LastRagdollVelocity.Size(), 0.f, 1000.f, 0.f, 25000.f), 0.f, 0.f, false);
+	Mesh->SetEnableGravity(LastRagdollVelocity.Z > -4000.f);
+	SetActorLocationDuringRagdoll();
+	FlailRate = UKismetMathLibrary::MapRangeClamped(Mesh->GetPhysicsLinearVelocity(FName("root")).Size(), 0.f, 1000.f, 0.f, 1.f);
+}
+void ULocomotionComponent::SetActorLocationDuringRagdoll_Implementation()
+{
+	FVector TargetRagdollLocation = Mesh->GetSocketLocation(PelvisBone);
+	FRotator MeshRotation = Mesh->GetSocketRotation(PelvisBone);
+	bRagdollFaceUp = MeshRotation.Roll < 0.f;
+	FRotator TargetRagdollRotation = FRotator(0.f, bRagdollFaceUp ? MeshRotation.Yaw - 180.f : MeshRotation.Yaw, 0.f);
+	FHitResult OutHit;
+	FVector StartLocation = TargetRagdollLocation;
+	FVector EndLocation = StartLocation - FVector(0.f, 0.f, CapsuleComponent->GetScaledCapsuleHalfHeight());
+	GetWorld()->LineTraceSingleByChannel(OutHit, StartLocation, EndLocation, ECC_Visibility);
+	bRagdollOnGround = OutHit.bBlockingHit;
+	if (bRagdollOnGround)
+	{
+		FVector NewLocation = FVector(TargetRagdollLocation.X, TargetRagdollLocation.Y, 2.f +
+			(CapsuleComponent->GetScaledCapsuleHalfHeight() - FMath::Abs(OutHit.ImpactPoint.Z - OutHit.TraceStart.Z)) +
+			TargetRagdollLocation.Z);
+		Character->SetActorLocationAndRotation(NewLocation, TargetRagdollRotation);
+	}
+	else {
+		Character->SetActorLocationAndRotation(TargetRagdollLocation, TargetRagdollRotation);
+	}
+}
+UAnimMontage* ULocomotionComponent::GetRagdollGetUpMontage_Implementation() const
+{
+	return bRagdollFaceUp ? RagdollGetUpBack : RagdollGetUpFront;
+}
+
 // methods to update movement settings
 void ULocomotionComponent::UpdateGait()
 {
@@ -256,7 +325,7 @@ void ULocomotionComponent::SetMovementMode(Enum_MovementMode NewMovementMode)
 	// Intercept core engine fall modes: If falling or early-raycast triggered while prone, route to Ragdoll instantly
 	if ((NewMovementMode == Enum_MovementMode::InAir || NewMovementMode == Enum_MovementMode::Ragdoll) && Stance == Enum_Stance::Prone)
 	{
-		MovementMode = Enum_MovementMode::Ragdoll;
+		//MovementMode = Enum_MovementMode::Ragdoll;
 		UpdateDynamicMovementSettings();
 		StartRagdoll(); // Invokes Blueprint system to decouple skeletal bounds into full simulation
 		return;
@@ -321,11 +390,11 @@ float ULocomotionComponent::CalculateMaxSpeedProned()
 float ULocomotionComponent::CalculateGroundFriction()
 {
 	if (Stance == Enum_Stance::Prone) return ProneGroundFriction;
-	if (Gait == Enum_Gait::Jog || Gait == Enum_Gait::Walk) return WalkGroundFriction;
+	if (Gait == Enum_Gait::Run || Gait == Enum_Gait::Walk) return WalkGroundFriction;
 	return UKismetMathLibrary::MapRangeClamped(
 		CharacterMovement->Velocity.Size2D(),
 		0.f,
-		RunSpeed.X,
+		SprintSpeed.X,
 		WalkGroundFriction,
 		RunGroundFriction);
 }
@@ -352,11 +421,11 @@ float ULocomotionComponent::CalculateMaxAcceleration()
 		}
 		return ActiveAcceleration;
 	}
-	if (Gait == Enum_Gait::Walk || Gait == Enum_Gait::Jog) return WalkAcceleration;
+	if (Gait == Enum_Gait::Walk || Gait == Enum_Gait::Run) return WalkAcceleration;
 	return UKismetMathLibrary::MapRangeClamped(
 		CharacterMovement->Velocity.Size2D(),
 		WalkSpeedRelaxed.X * 1.35,
-		RunSpeed.X,
+		SprintSpeed.X,
 		WalkAcceleration,
 		RunAcceleration);
 }
@@ -367,7 +436,7 @@ float ULocomotionComponent::CalculateMaxBrakingDeceleration()
 float ULocomotionComponent::CalculateMaxSpeed()
 {
 	// if no map is assigned in editor, return the default run speed
-	if (!IsValid(StrafeSpeedMapCurve)) return JogSpeed.X;
+	if (!IsValid(StrafeSpeedMapCurve)) return RunSpeed.X;
 	float StrafeSpeedMap = (CharacterMovement->bUseControllerDesiredRotation) ?
 		StrafeSpeedMapCurve->GetFloatValue(FMath::Abs(
 			UKismetAnimationLibrary::CalculateDirection(
@@ -384,8 +453,8 @@ float ULocomotionComponent::CalculateMaxSpeed()
 		case Enum_CharacterState::Combat: DesiredSpeed = WalkSpeedCombat; break;
 		}
 		break;
+	case Enum_Gait::Sprint: DesiredSpeed = SprintSpeed; break;
 	case Enum_Gait::Run: DesiredSpeed = RunSpeed; break;
-	case Enum_Gait::Jog: DesiredSpeed = JogSpeed; break;
 	}
 	return (StrafeSpeedMap < 1.f) ?
 		UKismetMathLibrary::MapRangeClamped( // forward direction speed (0 to 180 degree)
@@ -412,12 +481,12 @@ float ULocomotionComponent::CalculateMaxSpeedCrouched()
 }
 Enum_Gait ULocomotionComponent::GetDesiredGait()
 {
-	if (CanSprint()) return Enum_Gait::Run;
+	if (CanSprint()) return Enum_Gait::Sprint;
 	if (CharacterInputState.WantsToWalk) return Enum_Gait::Walk;
-	return Enum_Gait::Jog;
+	return Enum_Gait::Run;
 }
 // Handle Player Inputs
 void ULocomotionComponent::WantsToStrafe_Implementation(bool bStrafe) { CharacterInputState.WantsToStrafe = bStrafe; }
-void ULocomotionComponent::WantsToRun_Implementation(bool bStarted) { CharacterInputState.WantsToRun = bStarted; }
-void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { CharacterInputState.WantsToAim = bStarted; }
+void ULocomotionComponent::WantsToSprint_Implementation(bool bStarted) { CharacterInputState.WantsToSprint = bStarted; }
+void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { CharacterInputState.WantsToAim = bStarted; CharacterInputState.WantsToWalk = bStarted; }
 void ULocomotionComponent::WantsToWalk_Implementation(bool bStarted) { CharacterInputState.WantsToWalk = bStarted; }
