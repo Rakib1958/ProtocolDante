@@ -63,7 +63,8 @@ void ULocomotionComponent::CheckPredictiveProneLedgeFall()
 	);
 	if (!bGroundExistsAhead)
 	{
-		StartRagdoll();
+		//StartRagdoll();
+		SetMovementMode(Enum_MovementMode::Ragdoll);
 	}
 }
 void ULocomotionComponent::HandleProneExtremityCollisions(float DeltaTime)
@@ -207,6 +208,11 @@ bool ULocomotionComponent::CanStandFromCrouch() const
 	return !Character->GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
 }
 
+FVector ULocomotionComponent::GetLandVelocity() const
+{
+	return LandVelocity;
+}
+
 // ragdoll system
 void ULocomotionComponent::StartRagdoll_Implementation()
 {
@@ -218,6 +224,7 @@ void ULocomotionComponent::StartRagdoll_Implementation()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Mesh->SetAllBodiesBelowSimulatePhysics(PelvisBone, true, true);
 	MainAnimInstance->Montage_Stop(0.2f);
+	OnRagdollEnd.Broadcast();
 }
 void ULocomotionComponent::StopRagdoll_Implementation()
 {
@@ -325,7 +332,8 @@ void ULocomotionComponent::SetMovementMode(Enum_MovementMode NewMovementMode)
 	// Intercept core engine fall modes: If falling or early-raycast triggered while prone, route to Ragdoll instantly
 	if ((NewMovementMode == Enum_MovementMode::InAir || NewMovementMode == Enum_MovementMode::Ragdoll) && Stance == Enum_Stance::Prone)
 	{
-		//MovementMode = Enum_MovementMode::Ragdoll;
+		MovementMode = Enum_MovementMode::Ragdoll;
+		OnMovementModeChanged.Broadcast(MovementMode);
 		UpdateDynamicMovementSettings();
 		StartRagdoll(); // Invokes Blueprint system to decouple skeletal bounds into full simulation
 		return;
@@ -490,3 +498,4 @@ void ULocomotionComponent::WantsToStrafe_Implementation(bool bStrafe) { Characte
 void ULocomotionComponent::WantsToSprint_Implementation(bool bStarted) { CharacterInputState.WantsToSprint = bStarted; }
 void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { CharacterInputState.WantsToAim = bStarted; CharacterInputState.WantsToWalk = bStarted; }
 void ULocomotionComponent::WantsToWalk_Implementation(bool bStarted) { CharacterInputState.WantsToWalk = bStarted; }
+

@@ -234,4 +234,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToAim(bool bStarted);
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToWalk(bool bStarted);
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToStrafe(bool bStrafe);
+
+	FVector GetLandVelocity() const;
 };

@@ -27,6 +27,7 @@ public class CharacterDemo : ModuleRules
 			{
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
+				"PoseSearch",
 			}
 			);
 			

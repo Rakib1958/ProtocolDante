@@ -25,9 +25,13 @@ public class OptimizationComponent : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
-				// ... add other public dependencies that you statically link with here ...
-			}
+                "Core",
+            "CoreUObject",
+            "Engine",
+            "SignificanceManager",
+            "AnimationBudgetAllocator", // Fixes budget includes
+            "CharacterDemo"
+            }
 			);
 			
 		

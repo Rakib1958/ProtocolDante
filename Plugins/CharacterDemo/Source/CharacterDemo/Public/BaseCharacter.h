@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "LocomotionComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Perception/AISightTargetInterface.h" 
 #include "BaseCharacter.generated.h"
 
