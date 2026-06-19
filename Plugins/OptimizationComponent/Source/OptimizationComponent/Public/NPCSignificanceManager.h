@@ -17,7 +17,7 @@ class OPTIMIZATIONCOMPONENT_API UNPCSignificanceManager : public USignificanceMa
 
 public:
     // FIX: Removed BeginPlay and updated Update to match the true engine viewpoints signature
-    virtual void Update(TArrayView<const FTransform> Viewpoints) override;
+    virtual void Update(TArrayView<const FTransform> InViewpoints) override;
 
     // Called by AC_SignificanceComponent on NPC BeginPlay
     void RegisterNPC(UAC_SignificanceComponent* Component);

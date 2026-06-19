@@ -30,7 +30,8 @@ public class OptimizationComponent : ModuleRules
             "Engine",
             "SignificanceManager",
             "AnimationBudgetAllocator", // Fixes budget includes
-            "CharacterDemo"
+            "CharacterDemo",
+			"LocomotionSystem",
             }
 			);
 			

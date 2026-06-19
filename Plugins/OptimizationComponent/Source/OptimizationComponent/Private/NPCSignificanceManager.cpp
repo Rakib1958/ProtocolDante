@@ -8,18 +8,17 @@
 
 // FIX: Completely removed the invalid BeginPlay block. Caching now happens dynamically per-frame.
 
-void UNPCSignificanceManager::Update(TArrayView<const FTransform> Viewpoints)
+// FIX: Updated definition parameter to InViewpoints
+void UNPCSignificanceManager::Update(TArrayView<const FTransform> InViewpoints)
 {
-    // FIX: Pass the array view context straight back up to the engine parent
-    Super::Update(Viewpoints);
+    // FIX: Pass the updated input parameter safely up to the engine parent
+    Super::Update(InViewpoints);
 
     UWorld* World = GetWorld();
     if (!World) return;
 
-    // Extract frame delta times natively from the world context
     float DeltaSeconds = World->GetDeltaSeconds();
 
-    // Safe once-per-frame lazy caching assignment
     APlayerController* PC = World->GetFirstPlayerController();
     CachedPlayerPawn = PC ? PC->GetPawn() : nullptr;
     CachedCameraManager = PC ? PC->PlayerCameraManager : nullptr;
