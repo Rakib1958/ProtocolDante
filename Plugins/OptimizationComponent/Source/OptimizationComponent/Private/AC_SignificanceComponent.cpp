@@ -1,4 +1,6 @@
 #include "AC_SignificanceComponent.h"
+#include "Components/SkeletalMeshComponent.h" // FIX: Must be included first so the base class definition is fully known
+#include "SkeletalMeshComponentBudgeted.h"    // FIX: Resolves the undefined type error for USkeletalMeshComponentBudgeted
 #include "AC_NPC_Clothing.h"
 #include "MMAnimInstance.h"
 #include "IAnimationBudgetAllocator.h"
@@ -21,7 +23,11 @@ void UAC_SignificanceComponent::Initialize(ENPCType InNPCType)
     TArray<UActorComponent*> Found = Owner->GetComponentsByTag(USkeletalMeshComponent::StaticClass(), FName("Body"));
 
     if (!Found.IsEmpty())
+    {
         BodyMesh = Cast<USkeletalMeshComponent>(Found[0]);
+        // The type is now fully defined, allowing Cast to execute cleanly
+        BudgetedBodyMesh = Cast<USkeletalMeshComponentBudgeted>(Found[0]);
+    }
 
     ClothingComp = Owner->FindComponentByClass<UAC_NPC_Clothing>();
 
@@ -29,13 +35,14 @@ void UAC_SignificanceComponent::Initialize(ENPCType InNPCType)
 
     BudgetAllocator = IAnimationBudgetAllocator::Get(GetWorld());
 
-    if (BudgetAllocator && BodyMesh)
-        BudgetAllocator->RegisterComponent(BodyMesh);
+    if (BudgetAllocator && BudgetedBodyMesh)
+    {
+        BudgetAllocator->RegisterComponent(BudgetedBodyMesh);
+    }
 
-    // FIX: Replaced invalid GetSubsystem call with the proper static Significance Manager retrieval method
     if (UWorld* World = GetWorld())
     {
-        if (UNPCSignificanceManager* Manager = Cast<UNPCSignificanceManager>(USignificanceManager::GetSignificanceManager(World)))
+        if (UNPCSignificanceManager* Manager = USignificanceManager::Get<UNPCSignificanceManager>(World))
         {
             Manager->RegisterNPC(this);
         }
@@ -60,16 +67,16 @@ void UAC_SignificanceComponent::OnOwnerDied()
     bIsDead = true;
     OverrideTimeRemaining = 0.f;
 
-    if (BudgetAllocator && BodyMesh)
-        BudgetAllocator->UnregisterComponent(BodyMesh);
+    if (BudgetAllocator && BudgetedBodyMesh)
+    {
+        BudgetAllocator->UnregisterComponent(BudgetedBodyMesh);
+    }
 
-    // FIX: Corrected class name typo from UYourSignificanceManager to UNPCSignificanceManager
     if (UWorld* World = GetWorld())
     {
-        if (UNPCSignificanceManager* Manager = Cast<UNPCSignificanceManager>(USignificanceManager::GetSignificanceManager(World)))
+        if (UNPCSignificanceManager* Manager = USignificanceManager::Get<UNPCSignificanceManager>(World))
         {
             Manager->UnregisterNPC(this);
-            // Note: If you want to log dead bodies, you can call a custom manager method here.
         }
     }
 }
@@ -88,7 +95,6 @@ float UAC_SignificanceComponent::CalculatePerceivedDistance(APawn* PlayerPawn, A
 
     float WorldDistance = FVector::Dist(GetOwner()->GetActorLocation(), CameraManager->GetCameraLocation());
 
-    // Jakub's FOV weighting — narrow FOV zoomed views pull targets closer perceptually
     float FOV = CameraManager->GetFOVAngle();
     float MappedFOV = FMath::GetMappedRangeValueClamped(FVector2D(60.f, 120.f), FVector2D(1.f, 0.f), FOV);
 
@@ -171,14 +177,10 @@ void UAC_SignificanceComponent::ApplyTier(int32 NewTier)
         ClothingComp->SetFollowerTickInterval(TierConfig.FollowerTickInterval);
     }
 
-    if (BudgetAllocator && BodyMesh)
+    if (BudgetAllocator && BudgetedBodyMesh)
     {
-        BudgetAllocator->SetComponentSignificance(BodyMesh, TierConfig.BudgetAllocatorSignificance);
+        BudgetAllocator->SetComponentSignificance(BudgetedBodyMesh, TierConfig.BudgetAllocatorSignificance);
     }
-
-    // NOTE: AnimInstance->CurrentSignificanceTier is bypassed here because UMMAnimInstance 
-    // was stripped down to a pure trajectory model. In your AnimBP, you can easily read 
-    // the significance tier thread-safely via Property Access pointing to this component's CurrentTier field.
 
     OnTierChanged.Broadcast(OldTier, NewTier);
 }

@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Components/SkeletalMeshComponent.h" // FIX: Must be included first so the base class definition is fully known
+#include "SkeletalMeshComponentBudgeted.h"
 #include "NPCTypes.h"
 #include "SignificanceConfig.h"
 #include "AC_SignificanceComponent.generated.h"
@@ -72,6 +74,8 @@ public:
 private:
     UPROPERTY()
     TObjectPtr<USkeletalMeshComponent> BodyMesh;
+    UPROPERTY()
+    TObjectPtr<USkeletalMeshComponentBudgeted> BudgetedBodyMesh;
 
     UPROPERTY()
     TObjectPtr<UAC_NPC_Clothing> ClothingComp;

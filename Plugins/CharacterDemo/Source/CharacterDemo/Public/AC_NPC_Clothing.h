@@ -3,48 +3,12 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/StreamableManager.h"
-#include "NPCClothingDefinition.h"
+#include "NPCClothingDefinition.h" // FIX: Include the asset header to get structural visibility
 #include "AC_NPC_Clothing.generated.h"
 
-// Forward declarations to ensure fast compilation
+class USkeletalMeshComponent;
 class USkeletalMesh;
 class UAnimBlueprint;
-
-USTRUCT(BlueprintType)
-struct FBodyPartDefinition
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")
-    TSoftObjectPtr<USkeletalMesh> MeshAsset;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")
-    TMap<FName, float> MorphTargets;
-};
-
-UCLASS(BlueprintType)
-class CHARACTERDEMO_API UNPCClothingDefinition : public UPrimaryDataAsset
-{
-    GENERATED_BODY()
-public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Configuration")
-    TMap<EBodyPart, FBodyPartDefinition> MeshParts;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Skeleton")
-    ESkeletonType SkeletonType = ESkeletonType::UE5Mannequin;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Animation")
-    TSoftObjectPtr<UAnimBlueprint> RetargetABP_UE4;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Animation")
-    TSoftObjectPtr<UAnimBlueprint> RetargetABP_UE5;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Loot")
-    TSubclassOf<AActor> LootableItemClass;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Loot")
-    FName LootableItemID;
-};
 
 UCLASS(ClassGroup = "NPC", meta = (BlueprintSpawnableComponent))
 class CHARACTERDEMO_API UAC_NPC_Clothing : public UActorComponent
@@ -54,14 +18,20 @@ class CHARACTERDEMO_API UAC_NPC_Clothing : public UActorComponent
 public:
     UAC_NPC_Clothing();
 
+    // ── Configuration ────────────────────────────────────────────────────
+
     UPROPERTY(EditDefaultsOnly, Category = "Clothing")
     TObjectPtr<UNPCClothingDefinition> ClothingDefinition;
+
+    // ── State ────────────────────────────────────────────────────────────
 
     UPROPERTY(BlueprintReadOnly, Category = "State")
     bool bClothingLoaded = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "State")
     bool bUniformLooted = false;
+
+    // ── Delegates ────────────────────────────────────────────────────────
 
     DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnClothingLoaded);
     UPROPERTY(BlueprintAssignable, Category = "Events")
@@ -70,6 +40,8 @@ public:
     DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUniformLooted);
     UPROPERTY(BlueprintAssignable, Category = "Events")
     FOnUniformLooted OnUniformLooted;
+
+    // ── Public API ───────────────────────────────────────────────────────
 
     UFUNCTION(BlueprintCallable, Category = "Clothing")
     void InitializeClothing(UNPCClothingDefinition* Definition, bool bWasLooted);
@@ -98,7 +70,6 @@ private:
     void StartAsyncLoad();
     void OnAllMeshesLoaded();
 
-    // FIX: Explicitly synchronized parameters to receive raw asset references cleanly
     void ApplyMeshToComponent(USkeletalMeshComponent* Comp,
         USkeletalMesh* Mesh,
         UAnimBlueprint* RetargetABP,
