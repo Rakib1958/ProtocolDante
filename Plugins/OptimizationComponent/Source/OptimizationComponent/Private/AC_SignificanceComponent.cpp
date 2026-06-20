@@ -110,22 +110,50 @@ float UAC_SignificanceComponent::CalculatePerceivedDistance(APawn* PlayerPawn, A
 
 float UAC_SignificanceComponent::CalculateSignificance(APawn* PlayerPawn, APlayerCameraManager* CameraManager) const
 {
-    if (!Config || !GetOwner()) return 0.f;
+    if (!Config || Config->Tiers.IsEmpty() || !GetOwner()) return 0.f;
 
     float WorldDistance = PlayerPawn ? FVector::Dist(GetOwner()->GetActorLocation(), PlayerPawn->GetActorLocation()) : TNumericLimits<float>::Max();
 
-    if (WorldDistance <= Config->VisibilityCheckMaxDistance)
+    // ── CONFIGURATION-DRIVEN SMOOTH VISIBILITY GRADIENT ──────────────────────────────────
+    if (BodyMesh && BodyMesh->WasRecentlyRendered(0.1f))
     {
-        if (BodyMesh && BodyMesh->WasRecentlyRendered(0.1f))
-            return 1.f;
+        int32 NumTiers = Config->Tiers.Num();
+        float TierStep = 1.f / (float)NumTiers;
+
+        // Loop through your data asset tiers array to find exactly which range the NPC occupies
+        for (int32 i = 0; i < NumTiers; i++)
+        {
+            float MinDistance = (i == 0) ? 0.f : Config->Tiers[i - 1].MaxDistance;
+            float MaxDistance = Config->Tiers[i].MaxDistance;
+
+            if (WorldDistance >= MinDistance && WorldDistance <= MaxDistance)
+            {
+                // Calculate how deep the NPC is into this specific tier's distance window (0.0 to 1.0)
+                float DistanceDelta = MaxDistance - MinDistance;
+                float Alpha = (DistanceDelta > 0.f) ? ((WorldDistance - MinDistance) / DistanceDelta) : 0.f;
+
+                // Map Alpha onto the exact significance value range expected by ResolveToTier()
+                float MaxSignificanceForTier = 1.f - (TierStep * i);
+                float MinSignificanceForTier = 1.f - (TierStep * (i + 1));
+
+                // Linearly interpolate the score across the configured window boundaries
+                return FMath::Lerp(MaxSignificanceForTier, MinSignificanceForTier, Alpha);
+            }
+        }
+
+        // Fallback: If past the absolute maximum tier distance but still visible, return minimum significance
+        if (WorldDistance > Config->Tiers.Last().MaxDistance)
+        {
+            return 0.f;
+        }
     }
 
     if (HasActiveOverride())
         return 1.f;
 
+    // ── Out of Sight / Occluded Fallback (Remains active for background culling) ──────────
     float PerceivedDistance = CalculatePerceivedDistance(PlayerPawn, CameraManager);
-    float MaxDist = Config->Tiers.IsEmpty() ? 5000.f : Config->Tiers.Last().MaxDistance;
-
+    float MaxDist = Config->Tiers.Last().MaxDistance;
     float DistanceFactor = FMath::Clamp(1.f - (PerceivedDistance / MaxDist), 0.f, 1.f);
 
     float AlertFactor = 0.f;

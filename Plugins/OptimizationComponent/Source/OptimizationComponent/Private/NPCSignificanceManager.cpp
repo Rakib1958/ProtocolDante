@@ -3,9 +3,52 @@
 #include "SignificanceConfig.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
-#include "AC_NPC_Clothing.h"
 #include "Camera/PlayerCameraManager.h"
-#include "Kismet/GameplayStatics.h"
+
+// ── AUTONOMOUS ENGINE TICK ENTRY MATRIX ─────────────────────────────────────
+void UNPCSignificanceManager::Tick(float DeltaTime)
+{
+    UWorld* World = GetWorld();
+    // Guard tracking environments: Ignore CDO templates and inactive worlds
+    if (!World || HasAnyFlags(RF_ClassDefaultObject) || !World->IsGameWorld())
+    {
+        return;
+    }
+    if (GFrameNumber % 2 != 0)
+    {
+        return;
+    }
+
+    APlayerController* PC = World->GetFirstPlayerController();
+    if (!PC) return;
+
+    APlayerCameraManager* CamManager = PC->PlayerCameraManager;
+    if (!CamManager) return;
+
+    // Dynamically construct a viewpoint transform from the live player camera location
+    FTransform CameraViewpoint;
+    CameraViewpoint.SetLocation(CamManager->GetCameraLocation());
+    CameraViewpoint.SetRotation(CamManager->GetCameraRotation().Quaternion());
+
+    // Package it up into an array container view
+    TArray<FTransform> ViewpointArray;
+    ViewpointArray.Add(CameraViewpoint);
+
+    // Fire the calculation loop natively
+    Update(ViewpointArray);
+}
+
+bool UNPCSignificanceManager::IsTickable() const
+{
+    // Enable ticking only on active runtime operational instances
+    return !HasAnyFlags(RF_ClassDefaultObject);
+}
+
+TStatId UNPCSignificanceManager::GetStatId() const
+{
+    RETURN_QUICK_DECLARE_CYCLE_STAT(UNPCSignificanceManager, STATGROUP_Tickables);
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 void UNPCSignificanceManager::Update(TArrayView<const FTransform> InViewpoints)
 {
@@ -23,10 +66,10 @@ void UNPCSignificanceManager::Update(TArrayView<const FTransform> InViewpoints)
     EvaluateBatch(DeltaSeconds);
     EvaluateCorpses();
 }
+
 void UNPCSignificanceManager::EvaluateBatch(float DeltaSeconds)
 {
-    if (RegisteredComponents.IsEmpty()) return;
-    if (!CachedPlayerPawn) return;
+    if (RegisteredComponents.IsEmpty() || !CachedPlayerPawn) return;
 
     float BudgetMs = 0.1f;
     if (RegisteredComponents[0] && RegisteredComponents[0]->Config)
@@ -43,13 +86,11 @@ void UNPCSignificanceManager::EvaluateBatch(float DeltaSeconds)
 
         if (IsValid(RegisteredComponents[Index]))
         {
-            // Triggers the processing pass
             RegisteredComponents[Index]->EvaluateAndApply(CachedPlayerPawn, CachedCameraManager);
         }
 
         Evaluated++;
 
-        // Staggered budget timeout exit gate
         if ((FPlatformTime::Seconds() - StartTime) >= BudgetSeconds)
         {
             CurrentBatchIndex = (CurrentBatchIndex + Evaluated) % Total;
@@ -60,162 +101,29 @@ void UNPCSignificanceManager::EvaluateBatch(float DeltaSeconds)
     CurrentBatchIndex = 0;
 }
 
-void UNPCSignificanceManager::EvaluateCorpses()
-{
-    for (int32 i = Corpses.Num() - 1; i >= 0; i--)
-    {
-        UAC_SignificanceComponent* Corpse = Corpses[i];
-
-        // Clean up any garbage collected entries
-        if (!IsValid(Corpse))
-        {
-            Corpses.RemoveAtSwap(i);
-            continue;
-        }
-
-        USkeletalMeshComponent* Mesh = Corpse->GetBodyMesh();
-        if (!Mesh) continue;
-
-        // Visibility only — no tier changes, no LOD changes, no scoring
-        // WasRecentlyRendered handles occlusion naturally
-        bool bVisible = Mesh->WasRecentlyRendered(0.1f);
-
-        // Only call SetVisibility if state actually changed
-        // avoids unnecessary render state invalidation every frame
-        if (Mesh->IsVisible() != bVisible)
-        {
-            Mesh->SetVisibility(bVisible);
-
-            if (UAC_NPC_Clothing* Clothing =
-                Corpse->GetOwner()->FindComponentByClass<UAC_NPC_Clothing>())
-            {
-                Clothing->SetMeshVisibility(bVisible);
-            }
-        }
-    }
-}
-
-//float UNPCSignificanceManager::CalculateSignificance(UAC_SignificanceComponent* Comp) const
-//{
-//    UWorld* World = GetWorld();
-//    if (!Comp || !World || !Config) return 0.f;
-//
-//    AActor* Owner = Comp->GetOwner();
-//    if (!Owner) return 0.f;
-//
-//    APlayerController* PC = World->GetFirstPlayerController();
-//    if (!PC) return 0.f;
-//
-//    // ── Visibility check (highest precedence) ──────────────────────────
-//
-//    APawn* PlayerPawn = PC->GetPawn();
-//    float DistanceToPlayer = PlayerPawn
-//        ? FVector::Dist(Owner->GetActorLocation(), PlayerPawn->GetActorLocation())
-//        : TNumericLimits<float>::Max();
-//
-//    if (DistanceToPlayer <= Config->VisibilityCheckMaxDistance)
-//    {
-//        // FIX: Changed GetLeaderMesh() to GetBodyMesh() to match your component API
-//        USkeletalMeshComponent* BodyMesh = Comp->GetBodyMesh();
-//        if (BodyMesh && BodyMesh->WasRecentlyRendered(0.1f))
-//        {
-//            return 1.0f; // Rendered -> instantly evaluate at maximum fidelity
-//        }
-//    }
-//
-//    // ── Override channel (events, alarms, gunshots) ─────────────────────
-//
-//    if (Comp->HasActiveOverride())
-//    {
-//        return 1.0f;
-//    }
-//
-//    // ── Distance factor ──────────────────────────────────────────────────
-//
-//    float MaxDist = Config->Tiers.Num() > 0 ? Config->Tiers.Last().MaxDistance : 10000.f;
-//    float DistanceFactor = FMath::Clamp(1.f - (DistanceToPlayer / MaxDist), 0.f, 1.f);
-//
-//    // ── Alert state factor ───────────────────────────────────────────────
-//
-//    float AlertFactor = 0.f;
-//    switch (Comp->GetAlertState())
-//    {
-//    case EAlertState::Unaware:    AlertFactor = 0.0f; break;
-//    case EAlertState::Suspicious: AlertFactor = 0.3f; break;
-//    case EAlertState::Alerted:    AlertFactor = 0.6f; break;
-//    case EAlertState::Searching:  AlertFactor = 0.7f; break;
-//    case EAlertState::Engaging:   AlertFactor = 1.0f; break;
-//    }
-//
-//    // ── NPC type base factor ─────────────────────────────────────────────
-//
-//    float TypeFactor = 0.f;
-//    if (const int32* BaseTier = Config->BaseSignificanceTier.Find(Comp->GetNPCType()))
-//    {
-//        int32 MaxTier = Config->Tiers.Num() - 1;
-//        TypeFactor = MaxTier > 0 ? 1.f - ((float)*BaseTier / (float)MaxTier) : 1.f;
-//    }
-//
-//    // ── Weighted sum ─────────────────────────────────────────────────────
-//
-//    float Significance = (DistanceFactor * Config->DistanceWeight)
-//        + (AlertFactor * Config->AlertWeight)
-//        + (TypeFactor * Config->TypeWeight);
-//
-//    return FMath::Clamp(Significance, 0.f, 1.f);
-//}
-
-//int32 UNPCSignificanceManager::ResolveToTier(UAC_SignificanceComponent* Comp, float Significance) const
-//{
-//    if (!Config || Config->Tiers.IsEmpty()) return 0;
-//
-//    int32 NumTiers = Config->Tiers.Num();
-//    float TierStep = 1.f / (float)NumTiers;
-//
-//    for (int32 i = 0; i < NumTiers - 1; i++)
-//    {
-//        if (Significance >= 1.f - (TierStep * (i + 1)))
-//            return i;
-//    }
-//    return NumTiers - 1;
-//}
+void UNPCSignificanceManager::EvaluateCorpses() {}
 
 void UNPCSignificanceManager::RegisterNPC(UAC_SignificanceComponent* Component)
 {
     if (Component && !RegisteredComponents.Contains(Component))
     {
         RegisteredComponents.Add(Component);
-
-        // ── Viewport Registration Toast ───────────────────────────────────────
-        if (GEngine && Component->GetOwner())
-        {
-            FString RegisterMsg = FString::Printf(TEXT("[SYSTEM] Registered: %s | Active System Count: %d"),
-                *Component->GetOwner()->GetName(), RegisteredComponents.Num());
-
-            // Passing -1 prints a transient alert line that naturally scrolls down the viewport list
-            GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Orange, RegisterMsg);
-        }
+        UE_LOG(LogTemp, Warning, TEXT("NPCSignificanceManager: Registered %s | Total: %d"), *Component->GetOwner()->GetName(), RegisteredComponents.Num());
     }
 }
 
 void UNPCSignificanceManager::UnregisterNPC(UAC_SignificanceComponent* Component)
 {
-    if (Component && RegisteredComponents.Contains(Component))
+    if (Component)
     {
         RegisteredComponents.Remove(Component);
-
-        // ── Viewport Unregistration Toast ─────────────────────────────────────
-        if (GEngine && Component->GetOwner())
-        {
-            FString UnregisterMsg = FString::Printf(TEXT("[SYSTEM] Cleaned Up: %s | Remaining Active: %d"),
-                *Component->GetOwner()->GetName(), RegisteredComponents.Num());
-
-            GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Red, UnregisterMsg);
-        }
     }
 }
+
 void UNPCSignificanceManager::RegisterCorpse(UAC_SignificanceComponent* Component)
 {
-    if (IsValid(Component))
-        Corpses.AddUnique(Component);
+    if (Component && !Corpses.Contains(Component))
+    {
+        Corpses.Add(Component);
+    }
 }
