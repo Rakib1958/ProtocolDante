@@ -1,5 +1,4 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
 #include "PoseSearch/PoseSearchTrajectoryLibrary.h"
@@ -12,47 +11,35 @@ class LOCOMOTIONSYSTEM_API UMMAnimInstance : public UAnimInstance
 {
     GENERATED_BODY()
 
+public:
+    // Set by SignificanceComponent — ABP can skip expensive operations
+    UPROPERTY(BlueprintReadWrite, Category = "LOD") int32 CurrentSignificanceTier = 2;
+
 protected:
     // --- Trajectory Configurations & Buffers ---
-    UPROPERTY(EditDefaultsOnly, Category = "Motion Matching|Trajectory")
-    FPoseSearchTrajectoryData TrajectoryGenerationDataIdle;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Motion Matching|Trajectory")
-    FPoseSearchTrajectoryData TrajectoryGenerationDataMoving;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Trajectory")
-    FTransformTrajectory Trajectory;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Trajectory")
-    FPoseSearchTrajectory_WorldCollisionResults TrajectoryCollision;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Motion Matching|Trajectory")
-    float PreviousDesiredControllerYaw = 0.f;
+    UPROPERTY(EditDefaultsOnly, Category = "Motion Matching|Trajectory") FPoseSearchTrajectoryData TrajectoryGenerationDataIdle;
+    UPROPERTY(EditDefaultsOnly, Category = "Motion Matching|Trajectory") FPoseSearchTrajectoryData TrajectoryGenerationDataMoving;
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Trajectory") FTransformTrajectory Trajectory;
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Trajectory") FPoseSearchTrajectory_WorldCollisionResults TrajectoryCollision;
+    UPROPERTY(BlueprintReadWrite, Category = "Motion Matching|Trajectory") float PreviousDesiredControllerYaw = 0.f;
 
     // --- Extracted Velocities ---
     UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Velocity") FVector TrjPastVelocity;
     UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Velocity") FVector TrjCurrentVelocity;
     UPROPERTY(BlueprintReadOnly, Category = "Motion Matching|Velocity") FVector TrjFutureVelocity;
 
-    // Set by SignificanceComponent — ABP can skip expensive operations
-    UPROPERTY(BlueprintReadWrite, Category = "LOD")
-    int32 CurrentSignificanceTier = 2;
+    
 
     // --- Thread-Safe Core Trajectory Math APIs ---
-    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))
-    void UpdateTrajectory(float DeltaTime);
+    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))void UpdateTrajectory(float DeltaTime);
 
-    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))
-    void GeneratePlayerTrajectory(float DeltaTime);
+    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))void GeneratePlayerTrajectory(float DeltaTime);
 
-    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))
-    FTransformTrajectory GenerateNPCTrajectory(int32 HistoryCount, float InPredictionInterval, int32 PredictionCount, float DeltaTime);
+    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))FTransformTrajectory GenerateNPCTrajectory(int32 HistoryCount, float InPredictionInterval, int32 PredictionCount, float DeltaTime);
 
-    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))
-    void ApplyCollisionToTrajectoryWhenAir();
+    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))void ApplyCollisionToTrajectoryWhenAir();
 
-    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))
-    void OverrideTrajectoryFacing(UPARAM(ref) FTransformTrajectory& InTrajectoryData, const FRotator& InFacing, float NewFacingAlpha, bool bIncludeHistory);
+    UFUNCTION(BlueprintCallable, Category = "Motion Matching|Trajectory", meta = (BlueprintThreadSafe))void OverrideTrajectoryFacing(UPARAM(ref) FTransformTrajectory& InTrajectoryData, const FRotator& InFacing, float NewFacingAlpha, bool bIncludeHistory);
 
     // ── Thread-Safe Property Access Hooks (BlueprintNativeEvents) ──────────────────────
 

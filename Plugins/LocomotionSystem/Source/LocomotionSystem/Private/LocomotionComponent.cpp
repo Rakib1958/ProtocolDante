@@ -308,19 +308,12 @@ void ULocomotionComponent::SetStance(Enum_Stance NewStance)
 	{
 	case Enum_Stance::Stand: 
 		TargetCapsuleHalfHeight = StandCapsuleHalfHeight; 
-		//CharacterMovement->bOrientRotationToMovement = true;
-		CharacterInputState.WantsToStrafe = false;
 		break;
 	case Enum_Stance::Crouch: 
 		TargetCapsuleHalfHeight = CrouchCapsuleHalfHeight; 
-		//CharacterMovement->bOrientRotationToMovement = true;
-		CharacterInputState.WantsToStrafe = false;
 		break;
 	case Enum_Stance::Prone: 
 		TargetCapsuleHalfHeight = ProneCapsuleHalfHeight;
-		//CharacterMovement->bOrientRotationToMovement = false;  // we drive rotation manually
-		//CharacterMovement->bUseControllerDesiredRotation = true;
-		CharacterInputState.WantsToStrafe = true;
 		break;
 	}
 	OnStanceChanged.Broadcast(Stance);

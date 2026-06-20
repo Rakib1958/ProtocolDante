@@ -1,6 +1,6 @@
 #include "AC_SignificanceComponent.h"
-#include "Components/SkeletalMeshComponent.h" // FIX: Must be included first so the base class definition is fully known
-#include "SkeletalMeshComponentBudgeted.h"    // FIX: Resolves the undefined type error for USkeletalMeshComponentBudgeted
+#include "Components/SkeletalMeshComponent.h" 
+#include "SkeletalMeshComponentBudgeted.h"  
 #include "AC_NPC_Clothing.h"
 #include "MMAnimInstance.h"
 #include "IAnimationBudgetAllocator.h"
@@ -35,10 +35,10 @@ void UAC_SignificanceComponent::Initialize(ENPCType InNPCType)
 
     BudgetAllocator = IAnimationBudgetAllocator::Get(GetWorld());
 
-    if (BudgetAllocator && BudgetedBodyMesh)
-    {
-        BudgetAllocator->RegisterComponent(BudgetedBodyMesh);
-    }
+    //if (BudgetAllocator && BudgetedBodyMesh)
+    //{
+    //    BudgetAllocator->RegisterComponent(BudgetedBodyMesh);
+    //}
 
     if (UWorld* World = GetWorld())
     {
@@ -69,7 +69,7 @@ void UAC_SignificanceComponent::OnOwnerDied()
 
     if (BudgetAllocator && BudgetedBodyMesh)
     {
-        BudgetAllocator->UnregisterComponent(BudgetedBodyMesh);
+        BudgetAllocator->SetComponentSignificance(BudgetedBodyMesh, 0.f);
     }
 
     if (UWorld* World = GetWorld())
@@ -77,6 +77,7 @@ void UAC_SignificanceComponent::OnOwnerDied()
         if (UNPCSignificanceManager* Manager = USignificanceManager::Get<UNPCSignificanceManager>(World))
         {
             Manager->UnregisterNPC(this);
+            Manager->RegisterCorpse(this);
         }
     }
 }
@@ -180,6 +181,11 @@ void UAC_SignificanceComponent::ApplyTier(int32 NewTier)
     if (BudgetAllocator && BudgetedBodyMesh)
     {
         BudgetAllocator->SetComponentSignificance(BudgetedBodyMesh, TierConfig.BudgetAllocatorSignificance);
+    }
+
+    if (AnimInstance)
+    {
+        AnimInstance->CurrentSignificanceTier = NewTier;
     }
 
     OnTierChanged.Broadcast(OldTier, NewTier);

@@ -2,14 +2,15 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Components/SkeletalMeshComponent.h" // FIX: Must be included first so the base class definition is fully known
+#include "Components/SkeletalMeshComponent.h" 
+#include "MMAnimInstance.h"
 #include "SkeletalMeshComponentBudgeted.h"
 #include "NPCTypes.h"
 #include "SignificanceConfig.h"
 #include "AC_SignificanceComponent.generated.h"
 
 class UAC_NPC_Clothing;
-class UMMAnimInstance;
+//class UMMAnimInstance;
 class IAnimationBudgetAllocator;
 class APlayerCameraManager;
 
@@ -23,43 +24,26 @@ public:
 
     // ── Configuration ────────────────────────────────────────────────────
 
-    UPROPERTY(EditDefaultsOnly, Category = "Configuration")
-    ENPCType NPCType = ENPCType::Worker;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Configuration")
-    TObjectPtr<USignificanceConfig> Config;
+    UPROPERTY(EditDefaultsOnly, Category = "Configuration") ENPCType NPCType = ENPCType::Worker;
+    UPROPERTY(EditDefaultsOnly, Category = "Configuration") TObjectPtr<USignificanceConfig> Config;
 
     // ── State ────────────────────────────────────────────────────────────
 
-    UPROPERTY(BlueprintReadOnly, Category = "State")
-    int32 CurrentTier = 2;
-
-    UPROPERTY(BlueprintReadOnly, Category = "State")
-    EAlertState CurrentAlertState = EAlertState::Unaware;
-
-    UPROPERTY(BlueprintReadOnly, Category = "State")
-    bool bIsDead = false;
+    UPROPERTY(BlueprintReadOnly, Category = "State") int32 CurrentTier = 2;
+    UPROPERTY(BlueprintReadOnly, Category = "State") EAlertState CurrentAlertState = EAlertState::Unaware;
+    UPROPERTY(BlueprintReadOnly, Category = "State") bool bIsDead = false;
 
     // ── Delegates ────────────────────────────────────────────────────────
 
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTierChanged, int32, OldTier, int32, NewTier);
-
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnTierChanged OnTierChanged;
+    UPROPERTY(BlueprintAssignable, Category = "Events") FOnTierChanged OnTierChanged;
 
     // ── Public API ───────────────────────────────────────────────────────
 
-    UFUNCTION(BlueprintCallable, Category = "Significance")
-    void Initialize(ENPCType InNPCType);
-
-    UFUNCTION(BlueprintCallable, Category = "Significance")
-    void SetAlertState(EAlertState NewState);
-
-    UFUNCTION(BlueprintCallable, Category = "Significance")
-    void TriggerOverride(float Duration = -1.f);
-
-    UFUNCTION(BlueprintCallable, Category = "Significance")
-    void OnOwnerDied();
+    UFUNCTION(BlueprintCallable, Category = "Significance") void Initialize(ENPCType InNPCType);
+    UFUNCTION(BlueprintCallable, Category = "Significance") void SetAlertState(EAlertState NewState);
+    UFUNCTION(BlueprintCallable, Category = "Significance") void TriggerOverride(float Duration = -1.f);
+    UFUNCTION(BlueprintCallable, Category = "Significance") void OnOwnerDied();
 
     // FIX: Aligned signature to accept the camera manager passed from the manager batch loop
     void EvaluateAndApply(APawn* PlayerPawn, APlayerCameraManager* CameraManager);
@@ -72,16 +56,10 @@ public:
     USkeletalMeshComponent* GetBodyMesh() const { return BodyMesh; }
 
 private:
-    UPROPERTY()
-    TObjectPtr<USkeletalMeshComponent> BodyMesh;
-    UPROPERTY()
-    TObjectPtr<USkeletalMeshComponentBudgeted> BudgetedBodyMesh;
-
-    UPROPERTY()
-    TObjectPtr<UAC_NPC_Clothing> ClothingComp;
-
-    UPROPERTY()
-    TObjectPtr<UMMAnimInstance> AnimInstance;
+    UPROPERTY() TObjectPtr<USkeletalMeshComponent> BodyMesh;
+    UPROPERTY() TObjectPtr<USkeletalMeshComponentBudgeted> BudgetedBodyMesh;
+    UPROPERTY() TObjectPtr<UAC_NPC_Clothing> ClothingComp;
+    UPROPERTY() TObjectPtr<UMMAnimInstance> AnimInstance;
 
     IAnimationBudgetAllocator* BudgetAllocator = nullptr;
 

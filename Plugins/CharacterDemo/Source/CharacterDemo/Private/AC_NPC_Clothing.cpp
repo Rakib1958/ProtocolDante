@@ -1,6 +1,6 @@
 #include "AC_NPC_Clothing.h"
 #include "Engine/AssetManager.h"
-#include "Animation/AnimBlueprint.h" // Required to resolve ->GeneratedClass syntax hooks
+#include "Animation/AnimBlueprint.h" 
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
 
@@ -81,8 +81,14 @@ void UAC_NPC_Clothing::StartAsyncLoad()
 void UAC_NPC_Clothing::OnAllMeshesLoaded()
 {
     if (!ClothingDefinition) return;
+    if (!BodyMesh)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("AC_NPC_Clothing: BodyMesh is null on %s — check Body tag is set"),
+            *GetOwner()->GetName());
+        return;
+    }
 
-    // FIX: Extract the raw pointer structure safely from the loaded asset data arrays
     UAnimBlueprint* RawRetargetABP = ClothingDefinition->SkeletonType == ESkeletonType::UE4Mannequin
         ? ClothingDefinition->RetargetABP_UE4.Get()
         : ClothingDefinition->RetargetABP_UE5.Get();
@@ -91,15 +97,21 @@ void UAC_NPC_Clothing::OnAllMeshesLoaded()
     {
         if (Pair.Key == EBodyPart::Uniform && bUniformLooted) continue;
 
-        // FIX: Replaced USkeletalMeshComponent* with USkeletalMesh* matching your asset configuration properties
         USkeletalMesh* LoadedMesh = Pair.Value.MeshAsset.Get();
         if (!LoadedMesh) continue;
 
-        FString EnumString = UEnum::GetValueAsString(Pair.Key);
-        int32 ColonIndex = EnumString.Find("::");
-        FName Tag = (ColonIndex != INDEX_NONE) ? FName(*EnumString.Right(EnumString.Len() - ColonIndex - 2)) : FName(*EnumString);
+        static const TMap<EBodyPart, FName> PartToTag =
+        {
+            { EBodyPart::Body,    FName("Body")    },
+            { EBodyPart::Head,    FName("Head")    },
+            { EBodyPart::Hair,    FName("Hair")    },
+            { EBodyPart::Uniform, FName("Uniform") }
+        };
 
-        USkeletalMeshComponent* Comp = FindMeshByTag(Tag);
+        const FName* Tag = PartToTag.Find(Pair.Key);
+        if (!Tag) continue;
+
+        USkeletalMeshComponent* Comp = FindMeshByTag(*Tag);
         if (!Comp) continue;
 
         bool bIsBody = (Pair.Key == EBodyPart::Body);
@@ -110,8 +122,12 @@ void UAC_NPC_Clothing::OnAllMeshesLoaded()
             bIsBody ? nullptr : RawRetargetABP,
             Pair.Value.MorphTargets);
 
-        if (!bIsBody && BodyMesh)
-            Comp->SetLeaderPoseComponent(BodyMesh);
+        //if (!bIsBody && BodyMesh)
+        //    Comp->SetLeaderPoseComponent(BodyMesh);
+        if (!bIsBody)
+        {
+            Comp->SetLeaderPoseComponent(nullptr);
+        }
     }
 
     SetAllMeshesVisible(true);
@@ -119,7 +135,6 @@ void UAC_NPC_Clothing::OnAllMeshesLoaded()
     OnClothingLoaded.Broadcast();
 }
 
-// FIX: Aligned signature to match the exact pointer parameters set up in your header file definitions
 void UAC_NPC_Clothing::ApplyMeshToComponent(USkeletalMeshComponent* Comp, USkeletalMesh* Mesh, UAnimBlueprint* RetargetABP, const TMap<FName, float>& Morphs)
 {
     if (!Comp || !Mesh) return;

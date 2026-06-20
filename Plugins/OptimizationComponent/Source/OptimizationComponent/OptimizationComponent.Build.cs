@@ -26,12 +26,12 @@ public class OptimizationComponent : ModuleRules
 			new string[]
 			{
                 "Core",
-            "CoreUObject",
-            "Engine",
-            "SignificanceManager",
-            "AnimationBudgetAllocator", // Fixes budget includes
-            "CharacterDemo",
-			"LocomotionSystem",
+				"CoreUObject",
+				"Engine",
+				"SignificanceManager",
+				"AnimationBudgetAllocator", 
+				"CharacterDemo",
+				"LocomotionSystem",
             }
 			);
 			
