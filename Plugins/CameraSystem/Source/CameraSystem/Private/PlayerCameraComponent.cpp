@@ -156,7 +156,7 @@ void UPlayerCameraComponent::ApplyToSpringArm()
 		FinalPivot.Z += SmoothedPivotZ - ActualCapsuleZ;
 	}
 
-	float FinalFOV = CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta + FallFOVReduction;
+	float FinalFOV = (CurrentBase.FieldOfView + CurrentStanceOffset.FOVDelta + FallFOVReduction) * FOV_Multiplier;
 
 	// ── Apply notify override additively on top ───────────────────────────────
 	if (bIsOverrideActive || bNotifyBlendingOut)

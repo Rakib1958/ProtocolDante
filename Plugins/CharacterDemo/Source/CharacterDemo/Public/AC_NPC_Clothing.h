@@ -28,7 +28,7 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "State")
     bool bClothingLoaded = false;
 
-    UPROPERTY(BlueprintReadOnly, Category = "State")
+    UPROPERTY(BlueprintReadWrite, Category = "State")
     bool bUniformLooted = false;
 
     // ── Delegates ────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ public:
     // ── Public API ───────────────────────────────────────────────────────
 
     UFUNCTION(BlueprintCallable, Category = "Clothing")
-    void InitializeClothing(UNPCClothingDefinition* Definition, bool bWasLooted);
+    void InitializeClothing( bool bWasLooted);
 
     UFUNCTION(BlueprintCallable, Category = "Clothing")
     void LootUniform();

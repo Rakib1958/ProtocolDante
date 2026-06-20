@@ -185,17 +185,35 @@ void UNPCSignificanceManager::RegisterNPC(UAC_SignificanceComponent* Component)
     if (Component && !RegisteredComponents.Contains(Component))
     {
         RegisteredComponents.Add(Component);
+
+        // ── Viewport Registration Toast ───────────────────────────────────────
+        if (GEngine && Component->GetOwner())
+        {
+            FString RegisterMsg = FString::Printf(TEXT("[SYSTEM] Registered: %s | Active System Count: %d"),
+                *Component->GetOwner()->GetName(), RegisteredComponents.Num());
+
+            // Passing -1 prints a transient alert line that naturally scrolls down the viewport list
+            GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Orange, RegisterMsg);
+        }
     }
 }
 
 void UNPCSignificanceManager::UnregisterNPC(UAC_SignificanceComponent* Component)
 {
-    if (Component)
+    if (Component && RegisteredComponents.Contains(Component))
     {
         RegisteredComponents.Remove(Component);
+
+        // ── Viewport Unregistration Toast ─────────────────────────────────────
+        if (GEngine && Component->GetOwner())
+        {
+            FString UnregisterMsg = FString::Printf(TEXT("[SYSTEM] Cleaned Up: %s | Remaining Active: %d"),
+                *Component->GetOwner()->GetName(), RegisteredComponents.Num());
+
+            GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Red, UnregisterMsg);
+        }
     }
 }
-
 void UNPCSignificanceManager::RegisterCorpse(UAC_SignificanceComponent* Component)
 {
     if (IsValid(Component))

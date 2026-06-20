@@ -9,11 +9,11 @@ UAC_NPC_Clothing::UAC_NPC_Clothing()
     PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UAC_NPC_Clothing::InitializeClothing(UNPCClothingDefinition* Definition, bool bWasLooted)
+void UAC_NPC_Clothing::InitializeClothing(bool bWasLooted)
 {
-    if (!Definition) return;
+    if (!ClothingDefinition) return;
 
-    ClothingDefinition = Definition;
+    //ClothingDefinition = Definition;
     bUniformLooted = bWasLooted;
 
     ResolveMeshComponents();
@@ -115,6 +115,7 @@ void UAC_NPC_Clothing::OnAllMeshesLoaded()
         if (!Comp) continue;
 
         bool bIsBody = (Pair.Key == EBodyPart::Body);
+        //bool bIsUniform = (Pair.Key == EBodyPart::Uniform);
 
         ApplyMeshToComponent(
             Comp,

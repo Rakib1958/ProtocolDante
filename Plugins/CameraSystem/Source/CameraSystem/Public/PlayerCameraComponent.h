@@ -74,6 +74,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float RotationLagSpeed = 10.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float FieldOfView = 90.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float CrouchZInterpSpeed = 8.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Defaults") float FOV_Multiplier = 1.f;
 
 protected:
 	// ── First Person Config ───────────────────────────────────────────────────
