@@ -2,37 +2,23 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0",
-	"FriendlyName": "OptimizationComponent",
+	"FriendlyName": "NPCCore",
 	"Description": "",
 	"Category": "Other",
 	"CreatedBy": "Rakib",
-	"CreatedByURL": "rakibcdt1958@gmail.com",
+	"CreatedByURL": "",
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"CanContainContent": true,
-	"IsBetaVersion": true,
+	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "OptimizationComponent",
+			"Name": "NPCCore",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
-		}
-	],
-	"Plugins": [
-		{
-			"Name": "NPCCore",
-			"Enabled": true
-		},
-		{
-			"Name": "AnimationBudgetAllocator",
-			"Enabled": true
-		},
-		{
-			"Name": "SignificanceManager",
-			"Enabled": true
 		}
 	]
 }

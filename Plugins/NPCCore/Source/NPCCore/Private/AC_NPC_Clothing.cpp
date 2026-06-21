@@ -192,3 +192,46 @@ void UAC_NPC_Clothing::SetAllMeshesVisible(bool bVisible)
 {
     SetMeshVisibility(bVisible);
 }
+
+void UAC_NPC_Clothing::ApplyClothingLODBias(int32 LODBias)
+{
+    if (BodyMesh)
+    {
+        BodyMesh->SetForcedLOD(LODBias);
+    }
+
+    for (USkeletalMeshComponent* Follower : FollowerMeshes)
+    {
+        if (Follower)
+        {
+            Follower->SetForcedLOD(LODBias);
+        }
+    }
+}
+
+void UAC_NPC_Clothing::ApplyClothingVisibility(bool bVisible)
+{
+    if (BodyMesh)
+    {
+        BodyMesh->SetVisibility(bVisible);
+    }
+
+    for (USkeletalMeshComponent* Follower : FollowerMeshes)
+    {
+        if (Follower)
+        {
+            Follower->SetVisibility(bVisible);
+        }
+    }
+}
+
+void UAC_NPC_Clothing::ApplyClothingFollowerTickInterval(float Interval)
+{
+    for (USkeletalMeshComponent* Follower : FollowerMeshes)
+    {
+        if (Follower && Follower != UniformMesh) // Protect core uniform structural syncing
+        {
+            Follower->SetComponentTickInterval(Interval);
+        }
+    }
+}

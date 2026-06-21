@@ -38,7 +38,7 @@ struct FBodyPartDefinition
 };
 
 UCLASS(BlueprintType)
-class CHARACTERDEMO_API UNPCClothingDefinition : public UPrimaryDataAsset
+class NPCCORE_API UNPCClothingDefinition : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 

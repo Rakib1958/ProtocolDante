@@ -39,5 +39,6 @@ enum class EGoalRemoveReason : uint8
     Succeeded,
     Expired,
     Interrupted,
-    OwnerDied
+    OwnerDied,
+    Superseded
 };

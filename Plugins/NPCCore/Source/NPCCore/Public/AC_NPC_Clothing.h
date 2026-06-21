@@ -11,12 +11,23 @@ class USkeletalMesh;
 class UAnimBlueprint;
 
 UCLASS(ClassGroup = "NPC", meta = (BlueprintSpawnableComponent))
-class CHARACTERDEMO_API UAC_NPC_Clothing : public UActorComponent
+class NPCCORE_API UAC_NPC_Clothing : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
     UAC_NPC_Clothing();
+
+    // Optimization
+    // Reflection-Exposed Targets: Must match string names exactly!
+    UFUNCTION(BlueprintCallable, Category = "Optimization")
+    void ApplyClothingLODBias(int32 LODBias);
+
+    UFUNCTION(BlueprintCallable, Category = "Optimization")
+    void ApplyClothingVisibility(bool bVisible);
+
+    UFUNCTION(BlueprintCallable, Category = "Optimization")
+    void ApplyClothingFollowerTickInterval(float Interval);
 
     // ── Configuration ────────────────────────────────────────────────────
 

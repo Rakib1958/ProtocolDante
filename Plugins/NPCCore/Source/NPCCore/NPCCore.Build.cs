@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class OptimizationComponent : ModuleRules
+public class NPCCore : ModuleRules
 {
-	public OptimizationComponent(ReadOnlyTargetRules Target) : base(Target)
+	public NPCCore(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -25,12 +25,11 @@ public class OptimizationComponent : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-                "Core",
-				"CoreUObject",
-				"Engine",
-				"SignificanceManager",
-				"AnimationBudgetAllocator", 
-				"NPCCore",
+				"Core",
+				// ... add other public dependencies that you statically link with here ...
+				"AIModule",
+            "NavigationSystem",
+            "GameplayTags",
             }
 			);
 			
@@ -43,7 +42,8 @@ public class OptimizationComponent : ModuleRules
 				"Slate",
 				"SlateCore",
 				// ... add private dependencies that you statically link with here ...	
-			}
+				"BehaviorTreeEditor",
+            }
 			);
 		
 		

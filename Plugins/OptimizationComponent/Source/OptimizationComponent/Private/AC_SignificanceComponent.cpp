@@ -1,126 +1,61 @@
 #include "AC_SignificanceComponent.h"
-#include "Components/SkeletalMeshComponent.h" 
-#include "SkeletalMeshComponentBudgeted.h"  
-#include "AC_NPC_Clothing.h"
-#include "MMAnimInstance.h"
+#include "OptimizationAnimInterface.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "SkeletalMeshComponentBudgeted.h"
 #include "IAnimationBudgetAllocator.h"
+#include "Animation/AnimInstance.h"
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/Pawn.h"
+#include "Engine/World.h"
 #include "NPCSignificanceManager.h"
 
 UAC_SignificanceComponent::UAC_SignificanceComponent()
 {
-    PrimaryComponentTick.bCanEverTick = true;
+    PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UAC_SignificanceComponent::Initialize(ENPCType InNPCType)
+void UAC_SignificanceComponent::InitializeComponentCustom()
 {
-    NPCType = InNPCType;
-
     AActor* Owner = GetOwner();
     if (!Owner) return;
 
     TArray<UActorComponent*> Found = Owner->GetComponentsByTag(USkeletalMeshComponent::StaticClass(), FName("Body"));
-
     if (!Found.IsEmpty())
     {
         BodyMesh = Cast<USkeletalMeshComponent>(Found[0]);
-        // The type is now fully defined, allowing Cast to execute cleanly
         BudgetedBodyMesh = Cast<USkeletalMeshComponentBudgeted>(Found[0]);
     }
 
-    ClothingComp = Owner->FindComponentByClass<UAC_NPC_Clothing>();
-
-    AnimInstance = BodyMesh ? Cast<UMMAnimInstance>(BodyMesh->GetAnimInstance()) : nullptr;
-
     BudgetAllocator = IAnimationBudgetAllocator::Get(GetWorld());
-
-    if (UWorld* World = GetWorld())
-    {
-        USignificanceManager* RawManager = USignificanceManager::Get(World);
-        UNPCSignificanceManager* Manager = Cast<UNPCSignificanceManager>(RawManager);
-
-        if (Manager)
-        {
-            Manager->RegisterNPC(this);
-            bInitialized = true;
-        }
-        else
-        {
-            // The editor will now load safely and output this red warning text instead of crashing!
-            UE_LOG(LogTemp, Error, TEXT("UAC_SignificanceComponent: Active Significance Manager is not UNPCSignificanceManager! Check your Project Settings or DefaultEngine.ini."));
-            bInitialized = false;
-        }
-    }
-    UE_LOG(LogTemp, Warning,
-        TEXT("AnimInstance valid: %s"),
-        AnimInstance ? TEXT("YES") : TEXT("NO"));
-}
-
-void UAC_SignificanceComponent::SetAlertState(EAlertState NewState)
-{
-    CurrentAlertState = NewState;
-}
-
-void UAC_SignificanceComponent::TriggerOverride(float Duration)
-{
-    float UseDuration = Duration > 0.f ? Duration : (Config ? Config->EventOverrideDuration : 5.f);
-    OverrideTimeRemaining = FMath::Max(OverrideTimeRemaining, UseDuration);
-}
-
-void UAC_SignificanceComponent::OnOwnerDied()
-{
-    bIsDead = true;
-    OverrideTimeRemaining = 0.f;
-
-    if (BudgetAllocator && BudgetedBodyMesh)
-    {
-        BudgetAllocator->SetComponentSignificance(BudgetedBodyMesh, 0.f);
-    }
+    //if (BudgetAllocator && BudgetedBodyMesh)
+    //{
+    //    BudgetAllocator->RegisterComponent(BudgetedBodyMesh);
+    //}
 
     if (UWorld* World = GetWorld())
     {
         if (UNPCSignificanceManager* Manager = Cast<UNPCSignificanceManager>(USignificanceManager::Get(World)))
         {
-            Manager->UnregisterNPC(this);
-            Manager->RegisterCorpse(this);
+            Manager->RegisterNPC(this);
+            bInitialized = true;
         }
     }
 }
 
-void UAC_SignificanceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-    if (OverrideTimeRemaining > 0.f)
-        OverrideTimeRemaining -= DeltaTime;
-}
-
-float UAC_SignificanceComponent::CalculatePerceivedDistance(APawn* PlayerPawn, APlayerCameraManager* CameraManager) const
-{
-    if (!PlayerPawn || !CameraManager || !GetOwner()) return TNumericLimits<float>::Max();
-
-    float WorldDistance = FVector::Dist(GetOwner()->GetActorLocation(), CameraManager->GetCameraLocation());
-
-    float FOV = CameraManager->GetFOVAngle();
-    float MappedFOV = FMath::GetMappedRangeValueClamped(FVector2D(60.f, 120.f), FVector2D(1.f, 0.f), FOV);
-
-    return WorldDistance * FMath::Max(MappedFOV, 0.1f);
-}
-
 float UAC_SignificanceComponent::CalculateSignificance(APawn* PlayerPawn, APlayerCameraManager* CameraManager) const
 {
-    if (!Config || Config->Tiers.IsEmpty() || !GetOwner()) return 0.f;
+    if (!Config || Config->Tiers.IsEmpty() || !GetOwner() || bIsDead) return 0.f;
 
     float WorldDistance = PlayerPawn ? FVector::Dist(GetOwner()->GetActorLocation(), PlayerPawn->GetActorLocation()) : TNumericLimits<float>::Max();
 
-    // ── CONFIGURATION-DRIVEN SMOOTH VISIBILITY GRADIENT ──────────────────────────────────
+    // 1. Fully-Configured Smooth Visibility Falloff Matrix
+
+    if (HasActiveOverride()) return 1.f;
     if (BodyMesh && BodyMesh->WasRecentlyRendered(0.1f))
     {
         int32 NumTiers = Config->Tiers.Num();
         float TierStep = 1.f / (float)NumTiers;
 
-        // Loop through your data asset tiers array to find exactly which range the NPC occupies
         for (int32 i = 0; i < NumTiers; i++)
         {
             float MinDistance = (i == 0) ? 0.f : Config->Tiers[i - 1].MaxDistance;
@@ -128,61 +63,39 @@ float UAC_SignificanceComponent::CalculateSignificance(APawn* PlayerPawn, APlaye
 
             if (WorldDistance >= MinDistance && WorldDistance <= MaxDistance)
             {
-                // Calculate how deep the NPC is into this specific tier's distance window (0.0 to 1.0)
                 float DistanceDelta = MaxDistance - MinDistance;
                 float Alpha = (DistanceDelta > 0.f) ? ((WorldDistance - MinDistance) / DistanceDelta) : 0.f;
 
-                // Map Alpha onto the exact significance value range expected by ResolveToTier()
                 float MaxSignificanceForTier = 1.f - (TierStep * i);
                 float MinSignificanceForTier = 1.f - (TierStep * (i + 1));
 
-                // Linearly interpolate the score across the configured window boundaries
                 return FMath::Lerp(MaxSignificanceForTier, MinSignificanceForTier, Alpha);
             }
         }
 
-        // Fallback: If past the absolute maximum tier distance but still visible, return minimum significance
-        if (WorldDistance > Config->Tiers.Last().MaxDistance)
-        {
-            return 0.f;
-        }
+        if (WorldDistance > Config->Tiers.Last().MaxDistance) return 0.f;
     }
 
-    if (HasActiveOverride())
-        return 1.f;
+    
 
-    // ── Out of Sight / Occluded Fallback (Remains active for background culling) ──────────
+    // 2. Fallback Background Calculation Matrix
     float PerceivedDistance = CalculatePerceivedDistance(PlayerPawn, CameraManager);
     float MaxDist = Config->Tiers.Last().MaxDistance;
     float DistanceFactor = FMath::Clamp(1.f - (PerceivedDistance / MaxDist), 0.f, 1.f);
 
-    float AlertFactor = 0.f;
-    switch (CurrentAlertState)
-    {
-    case EAlertState::Unaware:    AlertFactor = 0.0f; break;
-    case EAlertState::Suspicious: AlertFactor = 0.3f; break;
-    case EAlertState::Alerted:    AlertFactor = 0.6f; break;
-    case EAlertState::Searching:  AlertFactor = 0.7f; break;
-    case EAlertState::Engaging:   AlertFactor = 1.0f; break;
-    }
-
     float TypeFactor = 0.f;
-    if (const int32* BaseTier = Config->BaseSignificanceTier.Find(NPCType))
+    if (const int32* BaseTier = Config->BaseSignificanceTier.Find(NPCTypeTag))
     {
         int32 MaxTier = FMath::Max(Config->Tiers.Num() - 1, 1);
         TypeFactor = 1.f - ((float)*BaseTier / (float)MaxTier);
     }
 
-    return FMath::Clamp(
-        (DistanceFactor * Config->DistanceWeight) +
-        (AlertFactor * Config->AlertWeight) +
-        (TypeFactor * Config->TypeWeight),
-        0.f, 1.f);
+    return FMath::Clamp((DistanceFactor * Config->DistanceWeight) + (TypeFactor * Config->TypeWeight), 0.f, 1.f);
 }
 
 int32 UAC_SignificanceComponent::ResolveToTier(float Significance) const
 {
-    if (!Config || Config->Tiers.IsEmpty()) return 0;
+    if (!Config || Config->Tiers.IsEmpty()) return 2;
 
     int32 NumTiers = Config->Tiers.Num();
     float TierStep = 1.f / (float)NumTiers;
@@ -195,6 +108,35 @@ int32 UAC_SignificanceComponent::ResolveToTier(float Significance) const
     return NumTiers - 1;
 }
 
+void UAC_SignificanceComponent::EvaluateAndApply(APawn* PlayerPawn, APlayerCameraManager* CameraManager)
+{
+    float DeltaTime = GetWorld()->GetDeltaSeconds();
+    if (OverrideTimeRemaining > 0.f)
+        OverrideTimeRemaining -= DeltaTime;
+    if (!bInitialized || bIsDead) return;
+
+    float Significance = CalculateSignificance(PlayerPawn, CameraManager);
+    int32 NewTier = ResolveToTier(Significance);
+
+    // Dynamic viewport debugging readout row allocation pass
+    if (GEngine)
+    {
+        FColor TierColor = FColor::White;
+        switch (NewTier)
+        {
+        case 0: TierColor = FColor::Cyan; break;
+        case 1: TierColor = FColor::Green; break;
+        case 2: TierColor = FColor::Yellow; break;
+        case 3: TierColor = FColor::Red; break;
+        }
+
+        FString DebugMsg = FString::Printf(TEXT("%s ── Score: %.2f | Active Tier: %d"), *GetOwner()->GetName(), Significance, NewTier);
+        if (bShouldDebug) GEngine->AddOnScreenDebugMessage(static_cast<uint64>(GetOwner()->GetUniqueID()), 1.5f, TierColor, DebugMsg);
+    }
+
+    ApplyTier(NewTier);
+}
+
 void UAC_SignificanceComponent::ApplyTier(int32 NewTier)
 {
     if (!Config || !Config->Tiers.IsValidIndex(NewTier)) return;
@@ -205,82 +147,102 @@ void UAC_SignificanceComponent::ApplyTier(int32 NewTier)
 
     const FSignificanceTierConfig& TierConfig = Config->Tiers[NewTier];
 
-    if (ClothingComp)
+    // ── REFLECTION RUNTIME EXECUTOR PASS ─────────────────────────────────────
+    if (CachedMessagingTarget.IsValid())
     {
-        ClothingComp->SetMeshLODBias(TierConfig.ForcedLOD);
-        ClothingComp->SetMeshVisibility(!TierConfig.bCullMeshes);
-        ClothingComp->SetFollowerTickInterval(TierConfig.FollowerTickInterval);
+        UActorComponent* TargetComp = CachedMessagingTarget.Get();
+
+        // 1. Invoke LOD Bias
+        if (UFunction* LODFunc = TargetComp->FindFunction(TEXT("ApplyClothingLODBias")))
+        {
+            int32 Param = TierConfig.ForcedLOD;
+            TargetComp->ProcessEvent(LODFunc, &Param);
+        }
+
+        // 2. Invoke Visibility
+        if (UFunction* VisFunc = TargetComp->FindFunction(TEXT("ApplyClothingVisibility")))
+        {
+            bool Param = !TierConfig.bCullMeshes;
+            TargetComp->ProcessEvent(VisFunc, &Param);
+        }
+
+        // 3. Invoke Tick Interval
+        if (UFunction* TickFunc = TargetComp->FindFunction(TEXT("ApplyClothingFollowerTickInterval")))
+        {
+            float Param = TierConfig.FollowerTickInterval;
+            TargetComp->ProcessEvent(TickFunc, &Param);
+        }
     }
 
+    // Budget allocator significance
     if (BudgetAllocator && BudgetedBodyMesh)
         BudgetAllocator->SetComponentSignificance(
             BudgetedBodyMesh, TierConfig.BudgetAllocatorSignificance);
 
-    // Re-cache AnimInstance if it was null at Initialize time
-    if (!AnimInstance && BodyMesh)
-        AnimInstance = Cast<UMMAnimInstance>(BodyMesh->GetAnimInstance());
+    // Notify Blueprint (clothing LOD, locomotion tick etc)
+    OnSignificanceTierChanged.Broadcast(OldTier, NewTier);
 
-    //if (AnimInstance)
-    //    AnimInstance->CurrentSignificanceTier = NewTier;
-    if (AnimInstance)
+    // Notify AnimInstance via interface
+    if (BodyMesh)
     {
-        // Search the runtime class metadata for the exact variable identifier name
-        static FName TierVarName(TEXT("CurrentSignificanceTier"));
-        if (FIntProperty* Prop = FindFProperty<FIntProperty>(AnimInstance->GetClass(), TierVarName))
+        UAnimInstance* AnimInst = BodyMesh->GetAnimInstance();
+        if (AnimInst && AnimInst->GetClass()->ImplementsInterface(
+            UOptimizationAnimInterface::StaticClass()))
         {
-            // Safely write the memory value straight into the instance instance space
-            Prop->SetValue_InContainer(AnimInstance, NewTier);
+            //IOptimizationAnimInterface::Execute_SetSignificanceTier(
+            //    AnimInst, NewTier);
+            static FName TierVarName(TEXT("CurrentSignificanceTier"));
+            if (FIntProperty* Prop = FindFProperty<FIntProperty>(AnimInst->GetClass(), TierVarName))
+            {
+                Prop->SetValue_InContainer(AnimInst, NewTier);
+            }
         }
     }
 
-    OnTierChanged.Broadcast(OldTier, NewTier);
 }
 
-void UAC_SignificanceComponent::EvaluateAndApply(APawn* PlayerPawn, APlayerCameraManager* CameraManager)
+float UAC_SignificanceComponent::CalculatePerceivedDistance(APawn* PlayerPawn, APlayerCameraManager* CameraManager) const
 {
-    if (!bInitialized || bIsDead || !GetOwner()) return;
+    if (!PlayerPawn) return TNumericLimits<float>::Max();
 
-    float Significance = CalculateSignificance(PlayerPawn, CameraManager);
-    int32 NewTier = ResolveToTier(Significance);
+    float WorldDistance = FVector::Dist(
+        GetOwner()->GetActorLocation(),
+        PlayerPawn->GetActorLocation());
 
-    // ── NATIVE VIEWPORT DEBUG TEXT OVERLAY ──────────────────────────────────────
-    if (GEngine)
+    if (!CameraManager) return WorldDistance;
+
+    float FOV = CameraManager->GetFOVAngle();
+    float MappedFOV = FMath::GetMappedRangeValueClamped(
+        FVector2D(60.f, 120.f),
+        FVector2D(1.f, 0.f),
+        FOV);
+
+    return WorldDistance * FMath::Max(MappedFOV, 0.1f);
+}
+
+void UAC_SignificanceComponent::TriggerOverride(float Duration)
+{
+    float UseDuration = Duration > 0.f
+        ? Duration
+        : (Config ? Config->EventOverrideDuration : 5.f);
+    OverrideTimeRemaining = FMath::Max(OverrideTimeRemaining, UseDuration);
+}
+
+void UAC_SignificanceComponent::OnOwnerDied()
+{
+    bIsDead = true;
+    OverrideTimeRemaining = 0.f;
+
+    if (BudgetAllocator && BudgetedBodyMesh)
+        BudgetAllocator->SetComponentSignificance(BudgetedBodyMesh, 0.f);
+
+    if (UWorld* World = GetWorld())
     {
-        // Color-code the text dynamically based on the target performance tier
-        FColor TierColor = FColor::White;
-        FString TierName = TEXT("UNKNOWN");
-
-        switch (NewTier)
+        if (UNPCSignificanceManager* Manager =
+            Cast<UNPCSignificanceManager>(USignificanceManager::Get(World)))
         {
-        case 0: TierColor = FColor::Cyan;    TierName = TEXT("TIER 0 (High / Full Smooth)"); break;
-        case 1: TierColor = FColor::Green;   TierName = TEXT("TIER 1 (Normal / Throttling)"); break;
-        case 2: TierColor = FColor::Yellow;  TierName = TEXT("TIER 2 (Low / Budgeted)"); break;
-        case 3: TierColor = FColor::Red;     TierName = TEXT("TIER 3 (Culled / Asleep)"); break;
+            Manager->UnregisterNPC(this);
+            Manager->RegisterCorpse(this);
         }
-
-        // Format a comprehensive single-line diagnostic readout
-        FString DebugMsg = FString::Printf(TEXT("%s ── Score: %.2f | Active: %s | Override: %s"),
-            *GetOwner()->GetName(),
-            Significance,
-            *TierName,
-            HasActiveOverride() ? TEXT("TRUE") : TEXT("FALSE"));
-
-        // Use the actor's unique runtime ID as the key channel. 
-        // This ensures each guard refreshes their own single row instead of flooding the screen vertically!
-        GEngine->AddOnScreenDebugMessage(
-            static_cast<uint64>(GetOwner()->GetUniqueID()),
-            1.5f,        // Display duration (slightly longer than batch tick rate to avoid flickering)
-            TierColor,   // Color map
-            DebugMsg     // Parsed message string
-        );
     }
-
-    ApplyTier(NewTier);
-}
-
-USkeletalMeshComponent* UAC_SignificanceComponent::FindMeshByTag(FName Tag) const
-{
-    if (!GetOwner()) return nullptr;
-    TArray<UActorComponent*> Found = GetOwner()->GetComponentsByTag(USkeletalMeshComponent::StaticClass(), Tag);
-    return Found.IsEmpty() ? nullptr : Cast<USkeletalMeshComponent>(Found[0]);
 }
