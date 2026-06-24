@@ -60,6 +60,10 @@ protected:
     virtual Enum_Gait GetThreadSafeGait_Implementation() const { return Enum_Gait::Run; }
 
     UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Motion Matching|Inputs", meta = (BlueprintThreadSafe))
+    Enum_MovementState GetThreadSafeMovementState() const;
+    virtual Enum_MovementState GetThreadSafeMovementState_Implementation() const { return Enum_MovementState::Idle; }
+
+    UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Motion Matching|Inputs", meta = (BlueprintThreadSafe))
     Enum_CharacterState GetThreadSafeCharacterState() const;
     virtual Enum_CharacterState GetThreadSafeCharacterState_Implementation() const { return Enum_CharacterState::Relaxed; }
 

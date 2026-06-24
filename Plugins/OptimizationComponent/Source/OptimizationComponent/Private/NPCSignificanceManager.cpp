@@ -101,7 +101,36 @@ void UNPCSignificanceManager::EvaluateBatch(float DeltaSeconds)
     CurrentBatchIndex = 0;
 }
 
-void UNPCSignificanceManager::EvaluateCorpses() {}
+void UNPCSignificanceManager::EvaluateCorpses()
+{
+    // ── FIX: Match header array naming container 'Corpses' ───────────────────
+    if (Corpses.IsEmpty()) return;
+
+    APlayerController* PC = GetWorld()->GetFirstPlayerController();
+    if (!PC || !PC->PlayerCameraManager) return;
+
+    FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
+
+    // Persist our current evaluation placement index across engine frames
+    static int32 CorpseBatchIndex = 0;
+
+    int32 TotalCorpses = Corpses.Num();
+    int32 EvaluationsThisFrame = FMath::Min(2, TotalCorpses);
+
+    for (int32 i = 0; i < EvaluationsThisFrame; ++i)
+    {
+        // Enforce boundary safety constraints before reading memory entries
+        CorpseBatchIndex = CorpseBatchIndex % TotalCorpses;
+
+        if (IsValid(Corpses[CorpseBatchIndex]))
+        {
+            Corpses[CorpseBatchIndex]->EvaluateCorpsePureDistance(CameraLocation);
+        }
+
+        // Advance to the next tracking slot sequentially
+        CorpseBatchIndex++;
+    }
+}
 
 void UNPCSignificanceManager::RegisterNPC(UAC_SignificanceComponent* Component)
 {
@@ -122,8 +151,10 @@ void UNPCSignificanceManager::UnregisterNPC(UAC_SignificanceComponent* Component
 
 void UNPCSignificanceManager::RegisterCorpse(UAC_SignificanceComponent* Component)
 {
+    // ── FIX: Corrected target registry to append straight to the Corpses array ──
     if (Component && !Corpses.Contains(Component))
     {
         Corpses.Add(Component);
+        UE_LOG(LogTemp, Log, TEXT("NPCSignificanceManager: Shifting %s to background corpse tracking queue."), *Component->GetOwner()->GetName());
     }
 }

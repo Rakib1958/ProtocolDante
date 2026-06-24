@@ -26,11 +26,19 @@ void UAC_SignificanceComponent::InitializeComponentCustom()
         BudgetedBodyMesh = Cast<USkeletalMeshComponentBudgeted>(Found[0]);
     }
 
+    // ── FIX 1: REFLECTION DISCOVERY MATRIX ──────────────────────────────────
+    // Locate and cache the decoupled clothing component handle automatically
+    static FName FunctionContractName(TEXT("ApplyClothingLODBias"));
+    for (UActorComponent* Comp : Owner->GetComponents())
+    {
+        if (Comp && Comp->FindFunction(FunctionContractName))
+        {
+            CachedMessagingTarget = Comp;
+            break;
+        }
+    }
+
     BudgetAllocator = IAnimationBudgetAllocator::Get(GetWorld());
-    //if (BudgetAllocator && BudgetedBodyMesh)
-    //{
-    //    BudgetAllocator->RegisterComponent(BudgetedBodyMesh);
-    //}
 
     if (UWorld* World = GetWorld())
     {
@@ -75,7 +83,8 @@ float UAC_SignificanceComponent::CalculateSignificance(APawn* PlayerPawn, APlaye
 
         if (WorldDistance > Config->Tiers.Last().MaxDistance) return 0.f;
     }
-
+    //FString DebugMsg = FString::Printf(TEXT("%s ── Score: %.2f | Active Tier: %d"), *GetOwner()->GetName(), Significance, NewTier);
+    //GEngine->AddOnScreenDebugMessage(static_cast<uint64>(GetOwner()->GetUniqueID()), 1.5f, FColor::Red, FString::Printf(TEXT("Running")));
     
 
     // 2. Fallback Background Calculation Matrix
@@ -191,11 +200,12 @@ void UAC_SignificanceComponent::ApplyTier(int32 NewTier)
         {
             //IOptimizationAnimInterface::Execute_SetSignificanceTier(
             //    AnimInst, NewTier);
-            static FName TierVarName(TEXT("CurrentSignificanceTier"));
-            if (FIntProperty* Prop = FindFProperty<FIntProperty>(AnimInst->GetClass(), TierVarName))
-            {
-                Prop->SetValue_InContainer(AnimInst, NewTier);
-            }
+            
+        }
+        static FName TierVarName(TEXT("CurrentSignificanceTier"));
+        if (FIntProperty* Prop = FindFProperty<FIntProperty>(AnimInst->GetClass(), TierVarName))
+        {
+            Prop->SetValue_InContainer(AnimInst, NewTier);
         }
     }
 
@@ -230,19 +240,94 @@ void UAC_SignificanceComponent::TriggerOverride(float Duration)
 
 void UAC_SignificanceComponent::OnOwnerDied()
 {
+    if (bIsDead) return;
     bIsDead = true;
     OverrideTimeRemaining = 0.f;
 
     if (BudgetAllocator && BudgetedBodyMesh)
         BudgetAllocator->SetComponentSignificance(BudgetedBodyMesh, 0.f);
 
+    // ── FIX 2: CORPSE VISUAL LOCKDOWN ────────────────────────────────────────
+    // Explicitly command the clothing component to lock into a permanent, non-dynamic state.
+    // Forcing an explicit LOD bias completely strips out engine FOV screen-size calculations!
+    if (CachedMessagingTarget.IsValid())
+    {
+        UActorComponent* TargetComp = CachedMessagingTarget.Get();
+
+        // 1. Force absolute high-quality LOD 0 (or LOD 1 for corpses) to lock out dynamic pops
+        if (UFunction* LODFunc = TargetComp->FindFunction(TEXT("ApplyClothingLODBias")))
+        {
+            int32 CorpseForcedLOD = 0;
+            TargetComp->ProcessEvent(LODFunc, &CorpseForcedLOD);
+        }
+
+        // 2. Ensure visibility is clamped to TRUE permanently
+        if (UFunction* VisFunc = TargetComp->FindFunction(TEXT("ApplyClothingVisibility")))
+        {
+            bool bVisible = true;
+            TargetComp->ProcessEvent(VisFunc, &bVisible);
+        }
+
+        // 3. Relax tick optimizations since they are no longer moving
+        if (UFunction* TickFunc = TargetComp->FindFunction(TEXT("ApplyClothingFollowerTickInterval")))
+        {
+            float DeadTickInterval = 0.0f; // Default baseline engine ticking for static poses
+            TargetComp->ProcessEvent(TickFunc, &DeadTickInterval);
+        }
+    }
+
     if (UWorld* World = GetWorld())
     {
-        if (UNPCSignificanceManager* Manager =
-            Cast<UNPCSignificanceManager>(USignificanceManager::Get(World)))
+        if (UNPCSignificanceManager* Manager = Cast<UNPCSignificanceManager>(USignificanceManager::Get(World)))
         {
             Manager->UnregisterNPC(this);
             Manager->RegisterCorpse(this);
+        }
+    }
+}
+
+void UAC_SignificanceComponent::EvaluateCorpsePureDistance(const FVector& CameraLocation)
+{
+    if (!GetOwner()) return;
+
+    // 1. Calculate absolute, raw world distance (Zero FOV weight!)
+    float DistanceToCamera = FVector::Dist(GetOwner()->GetActorLocation(), CameraLocation);
+
+    // 2. Map distance thresholds directly to explicit forced LOD layers
+    int32 IntendedLOD = 0;
+    bool bShouldBeVisible = true;
+
+    if (DistanceToCamera > 5000.f) // Beyond 50 meters, cull the clothes completely
+    {
+        bShouldBeVisible = false;
+    }
+    else if (DistanceToCamera > 2500.f) // Medium-Far distance
+    {
+        IntendedLOD = 2;
+    }
+    else if (DistanceToCamera > 1000.f) // Medium distance
+    {
+        IntendedLOD = 1;
+    }
+    else // Close proximity
+    {
+        IntendedLOD = 0;
+    }
+
+    // 3. Force the clothing component to use this exact LOD layer.
+    // Setting an explicit ForcedLOD explicitly overrides and shuts down Unreal's auto-LOD FOV calculation!
+    if (CachedMessagingTarget.IsValid())
+    {
+        UActorComponent* TargetComp = CachedMessagingTarget.Get();
+
+        if (UFunction* LODFunc = TargetComp->FindFunction(TEXT("ApplyClothingLODBias")))
+        {
+            TargetComp->ProcessEvent(LODFunc, &IntendedLOD);
+        }
+
+        if (UFunction* VisFunc = TargetComp->FindFunction(TEXT("ApplyClothingVisibility")))
+        {
+            TargetComp->ProcessEvent(VisFunc, &bShouldBeVisible);
         }
     }
 }

@@ -123,12 +123,12 @@ void UAC_NPC_Clothing::OnAllMeshesLoaded()
             bIsBody ? nullptr : RawRetargetABP,
             Pair.Value.MorphTargets);
 
-        //if (!bIsBody && BodyMesh)
-        //    Comp->SetLeaderPoseComponent(BodyMesh);
-        if (!bIsBody)
-        {
-            Comp->SetLeaderPoseComponent(nullptr);
-        }
+        if (!bIsBody && BodyMesh)
+            Comp->SetLeaderPoseComponent(BodyMesh);
+        //if (!bIsBody)
+        //{
+        //    Comp->SetLeaderPoseComponent(nullptr);
+        //}
     }
 
     SetAllMeshesVisible(true);

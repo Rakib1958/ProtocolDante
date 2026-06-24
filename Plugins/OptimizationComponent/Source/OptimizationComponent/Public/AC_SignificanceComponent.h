@@ -46,6 +46,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Optimization")
     void OnOwnerDied();
 
+    // Dedicated evaluation pass for dead bodies
+    void EvaluateCorpsePureDistance(const FVector& CameraLocation);
+
 private:
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> BodyMesh;
     UPROPERTY() TObjectPtr<class USkeletalMeshComponentBudgeted> BudgetedBodyMesh;

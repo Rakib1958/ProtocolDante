@@ -2,7 +2,6 @@
 
 void UMMAnimInstance::UpdateTrajectory(float DeltaTime)
 {
-    // Routes cleanly inside the thread worker pool based on your BP native control check
     if (IsPlayerControlledCharacter())
     {
         GeneratePlayerTrajectory(DeltaTime);
@@ -20,25 +19,28 @@ void UMMAnimInstance::GeneratePlayerTrajectory(float DeltaTime)
     const FPoseSearchTrajectoryData& ConfigData = (CachedSpeed2D > 0.0f) ? TrajectoryGenerationDataMoving : TrajectoryGenerationDataIdle;
 
     FTransformTrajectory GeneratedTrajectory;
-    UPoseSearchTrajectoryLibrary::PoseSearchGenerateTransformTrajectory(
-        this,
-        ConfigData,
-        DeltaTime,
-        Trajectory,
-        PreviousDesiredControllerYaw,
-        GeneratedTrajectory,
-        -1.0f, // InHistorySamplingInterval (Auto-calculate)
-        30,    // InTrajectoryHistoryCount
-        0.1f,  // InPredictionSamplingInterval
-        15     // InTrajectoryPredictionCount
-    );
 
-    // Pull combat rules safely from property access interfaces
-    if (GetThreadSafeRotationMode() == Enum_RotationMode::LookingDirection &&
-        GetThreadSafeGait() != Enum_Gait::Sprint &&
-        GetThreadSafeCharacterState() == Enum_CharacterState::Combat)
+    if (GetThreadSafeCharacterState() == Enum_CharacterState::Combat)
     {
-        OverrideTrajectoryFacing(GeneratedTrajectory, GetThreadSafeCombatRotation(), 1.0f, true);
+        float TargetDesiredYaw = GetThreadSafeCombatRotation().Yaw;
+
+        UPoseSearchTrajectoryLibrary::PoseSearchGenerateTransformTrajectory(
+            this, ConfigData, DeltaTime, Trajectory, TargetDesiredYaw,
+            GeneratedTrajectory, -1.0f, 30, 0.1f, 15
+        );
+
+        const bool bIsMoving = CachedSpeed2D > 5.0f;
+        const float CombatWalkMaxSpeed = 150.0f;
+        const float DynamicFacingAlpha = FMath::Clamp(CachedSpeed2D / CombatWalkMaxSpeed, 0.3f, 1.0f);
+
+        OverrideTrajectoryFacing(GeneratedTrajectory, GetThreadSafeCombatRotation(), DynamicFacingAlpha, bIsMoving);
+    }
+    else
+    {
+        UPoseSearchTrajectoryLibrary::PoseSearchGenerateTransformTrajectory(
+            this, ConfigData, DeltaTime, Trajectory, PreviousDesiredControllerYaw,
+            GeneratedTrajectory, -1.0f, 30, 0.1f, 15
+        );
     }
 
     FTransformTrajectory CollidedTrajectory;
@@ -59,7 +61,6 @@ void UMMAnimInstance::GeneratePlayerTrajectory(float DeltaTime)
     Trajectory = CollidedTrajectory;
     TrajectoryCollision = CollisionResults;
 
-    // UE 5.8 Static Reference Signature Parsing
     UPoseSearchTrajectoryLibrary::GetTransformTrajectoryVelocity(Trajectory, -0.3f, -0.2f, TrjPastVelocity, false);
     UPoseSearchTrajectoryLibrary::GetTransformTrajectoryVelocity(Trajectory, 0.0f, 0.2f, TrjCurrentVelocity, false);
     UPoseSearchTrajectoryLibrary::GetTransformTrajectoryVelocity(Trajectory, 0.4f, 0.5f, TrjFutureVelocity, false);
@@ -78,7 +79,6 @@ FTransformTrajectory UMMAnimInstance::GenerateNPCTrajectory(int32 HistoryCount, 
 
     Trajectory = GeneratedTrajectory;
 
-    // UE 5.8 Static Reference Out-Param Sampling
     UPoseSearchTrajectoryLibrary::GetTransformTrajectoryVelocity(Trajectory, 0.4f, 0.5f, TrjFutureVelocity, false);
 
     return Trajectory;

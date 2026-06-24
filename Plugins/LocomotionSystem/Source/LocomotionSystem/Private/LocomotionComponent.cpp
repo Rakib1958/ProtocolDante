@@ -1,6 +1,7 @@
 ﻿#include "LocomotionComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "KismetAnimationLibrary.h"
+#include "LocomotionInterface.h"
 #include "Engine/Engine.h"
 ULocomotionComponent::ULocomotionComponent()
 {
@@ -216,6 +217,10 @@ FVector ULocomotionComponent::GetLandVelocity() const
 // ragdoll system
 void ULocomotionComponent::StartRagdoll_Implementation()
 {
+	if (Character->GetClass()->ImplementsInterface(ULocomotionInterface::StaticClass()))
+	{
+		ILocomotionInterface::Execute_OwnerRagdollStart(Character);
+	}
 	if (!bIsValidCharacter) return;
 	CharacterMovement->SetMovementMode(EMovementMode::MOVE_None);
 	SetMovementMode(Enum_MovementMode::Ragdoll);
@@ -228,6 +233,10 @@ void ULocomotionComponent::StartRagdoll_Implementation()
 }
 void ULocomotionComponent::StopRagdoll_Implementation()
 {
+	if (Character->GetClass()->ImplementsInterface(ULocomotionInterface::StaticClass()))
+	{
+		ILocomotionInterface::Execute_OwnerRagdollEnd(Character);
+	}
 	if (!bIsValidCharacter) return;
 	MainAnimInstance->SavePoseSnapshot(SnapshotName);
 	if (bRagdollOnGround)
@@ -487,8 +496,24 @@ Enum_Gait ULocomotionComponent::GetDesiredGait()
 	return Enum_Gait::Run;
 }
 // Handle Player Inputs
-void ULocomotionComponent::WantsToStrafe_Implementation(bool bStrafe) { CharacterInputState.WantsToStrafe = bStrafe; }
-void ULocomotionComponent::WantsToSprint_Implementation(bool bStarted) { CharacterInputState.WantsToSprint = bStarted; }
-void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { CharacterInputState.WantsToAim = bStarted; CharacterInputState.WantsToWalk = bStarted; }
-void ULocomotionComponent::WantsToWalk_Implementation(bool bStarted) { CharacterInputState.WantsToWalk = bStarted; }
+void ULocomotionComponent::WantsToStrafe_Implementation(bool bStrafe) { 
+	CharacterInputState.WantsToStrafe = bStrafe; 
+}
+void ULocomotionComponent::WantsToSprint_Implementation(bool bStarted) { 
+	if (!CharacterInputState.WantsToAim)
+	{
+		CharacterInputState.WantsToSprint = bStarted;
+	}
+}
+void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { 
+	CharacterInputState.WantsToAim = bStarted; 
+	CharacterInputState.WantsToWalk = bStarted; 
+	CharacterInputState.WantsToSprint = false;
+}
+void ULocomotionComponent::WantsToWalk_Implementation(bool bStarted) { 
+	if (!CharacterInputState.WantsToSprint)
+	{
+		CharacterInputState.WantsToWalk = bStarted;
+	}
+}
 
