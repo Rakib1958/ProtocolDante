@@ -68,6 +68,20 @@ void ULocomotionComponent::CheckPredictiveProneLedgeFall()
 		SetMovementMode(Enum_MovementMode::Ragdoll);
 	}
 }
+
+float ULocomotionComponent::GetGaitScore(Enum_Gait InGait) const
+{
+	switch (InGait)
+	{
+	case Enum_Gait::Run:
+		return 1;
+	case Enum_Gait::Sprint:
+		return 2;
+	default:
+		return 0;
+	}
+}
+
 void ULocomotionComponent::HandleProneExtremityCollisions(float DeltaTime)
 {
 	if (!bIsValidCharacter || !IsValid(CharacterMovement) || !IsValid(CapsuleComponent)) return;
@@ -291,7 +305,13 @@ UAnimMontage* ULocomotionComponent::GetRagdollGetUpMontage_Implementation() cons
 // methods to update movement settings
 void ULocomotionComponent::UpdateGait()
 {
-	if (GetDesiredGait() != Gait) Gait = GetDesiredGait();
+	Enum_Gait cachedGait = GetDesiredGait();
+	if (cachedGait != Gait)
+	{
+		
+		Gait = GetGaitScore(cachedGait) > GetGaitScore(MaxGait) ? MaxGait : cachedGait;
+		OnGaitChanged.Broadcast(Gait);
+	}
 }
 void ULocomotionComponent::UpdateDynamicMovementSettings()
 {
@@ -496,8 +516,8 @@ Enum_Gait ULocomotionComponent::GetDesiredGait()
 	return Enum_Gait::Run;
 }
 // Handle Player Inputs
-void ULocomotionComponent::WantsToStrafe_Implementation(bool bStrafe) { 
-	CharacterInputState.WantsToStrafe = bStrafe; 
+void ULocomotionComponent::WantsToStrafe_Implementation() { 
+	CharacterInputState.WantsToStrafe = !CharacterInputState.WantsToStrafe; 
 }
 void ULocomotionComponent::WantsToSprint_Implementation(bool bStarted) { 
 	if (!CharacterInputState.WantsToAim)
@@ -507,7 +527,7 @@ void ULocomotionComponent::WantsToSprint_Implementation(bool bStarted) {
 }
 void ULocomotionComponent::WantsToAim_Implementation(bool bStarted) { 
 	CharacterInputState.WantsToAim = bStarted; 
-	CharacterInputState.WantsToWalk = bStarted; 
+	// CharacterInputState.WantsToWalk = bStarted; 
 	CharacterInputState.WantsToSprint = false;
 }
 void ULocomotionComponent::WantsToWalk_Implementation(bool bStarted) { 
