@@ -68,6 +68,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateMovementSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpdateRotationSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRagdollEnd);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStanceChanged, Enum_Stance, NewStance);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGaitChanged, Enum_Gait, NewGait);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMovementModeChanged, Enum_MovementMode, NewMovementMode);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterStateChanged, Enum_CharacterState, NewCharacterState);
 
@@ -111,6 +112,7 @@ private:
 	void TickStanceTransition(float DeltaTime);
 	void CheckPredictiveProneLedgeFall();
 	void SetRotationWhileProning(float DeltaTime);
+	float GetGaitScore(Enum_Gait InGait) const;
 
 	float TargetCapsuleHalfHeight = 0.f;
 	//void DebugPrint(FString text, FColor color, float duration);
@@ -199,6 +201,7 @@ public:
 	// Do Not Modify these values, these are changed by the functions associated with it
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_Gait Gait = Enum_Gait::Run;
 	// Do Not Modify these values, these are changed by the functions associated with it
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "States|Do Not Change") Enum_Gait MaxGait = Enum_Gait::Sprint;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll|Do Not Change") float FlailRate = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ragdoll") UAnimSequence* FlailSequence = nullptr;
@@ -210,7 +213,8 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnStanceChanged OnStanceChanged;
 	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Delegates") FOnMovementModeChanged OnMovementModeChanged;
 	UPROPERTY(BlueprintAssignable, Category = "Delegates")  FOnCharacterStateChanged OnCharacterStateChanged;
-
+	UPROPERTY(BlueprintAssignable, Category = "Delegates") FOnGaitChanged OnGaitChanged;
+	
 	// ─── PUBLIC BLUEPRINT HANDSHAKES ───
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Ragdoll") void StartRagdoll();
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Ragdoll") void StopRagdoll();
@@ -233,7 +237,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToSprint(bool bStarted);
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToAim(bool bStarted);
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToWalk(bool bStarted);
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToStrafe(bool bStrafe);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Input") void WantsToStrafe();
 
 	FVector GetLandVelocity() const;
 };
