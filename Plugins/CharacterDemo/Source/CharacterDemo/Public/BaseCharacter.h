@@ -1,10 +1,15 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "LocomotionComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Perception/AISightTargetInterface.h" 
 #include "BaseCharacter.generated.h"
+
+class ULocomotionComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnParkourFinished);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInteractFinished);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTraversalFinished);
 
 UCLASS()
 class CHARACTERDEMO_API ABaseCharacter : public ACharacter, public IAISightTargetInterface
@@ -47,4 +52,21 @@ public:
 
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "Input")
 	FStruct_CharacterInputState GetCurrentInputState();
+	
+// variables and functions needed in blueprint override
+public:
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure,  BlueprintCallable, Category = "Combat") FRotator GetLockOnTargetRotation() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Combat") bool IsDefending() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Combat") bool CanActivateSoftLock() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Combat") bool NoCombatActive() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Combat") void SoftLockRotation();
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Parkour") bool NoParkourActive() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Parkour") bool NoTraversalActive() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Parkour") bool CanDoTraversal() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, BlueprintCallable, Category = "Parkour") bool JustFinishedParkour() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Parkour") void TryToParkour() ;
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Interact") void TryToInteract(bool Pressed) ;
+	
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Locomotion") void UpdateMovement();
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Locomotion") void UpdateRotation();
 };

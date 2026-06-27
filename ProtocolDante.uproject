@@ -127,6 +127,21 @@
 			"Name": "IconCreator",
 			"Enabled": true,
 			"MarketplaceURL": "com.epicgames.launcher://ue/Fab/product/1509c8dc-fed5-452b-abdb-b96a6bba4a7a"
+		},
+		{
+			"Name": "BlendPosesByTag",
+			"Enabled": true,
+			"MarketplaceURL": "com.epicgames.launcher://ue/Fab/product/61ec1d65-f389-44c1-ad9e-398ac5f2fa4f"
+		},
+		{
+			"Name": "DarkerNodes",
+			"Enabled": true,
+			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/4b3441f0228a40ec9ca986489a5bd682"
+		},
+		{
+			"Name": "NPCEyesSightPRO",
+			"Enabled": true,
+			"MarketplaceURL": "com.epicgames.launcher://ue/Fab/product/6b54716a-dd21-414d-b78f-384068de14b7"
 		}
 	]
 }

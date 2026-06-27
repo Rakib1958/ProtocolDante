@@ -5,8 +5,16 @@
     <projectFile>Intermediate/ProjectFiles/UE5.vcxproj</projectFile>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3a52079c-794e-44cb-a8a4-74769d837b78" name="Changes" comment="">
+    <list default="true" id="f68593cb-21fe-40e5-984b-80e10a1212bd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtocolDante/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtocolDante/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Config/DefaultEditorPerProjectUserSettings.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultEditorPerProjectUserSettings.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Config/DefaultEngine.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultEngine.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/CharacterDemo/Source/CharacterDemo/Private/BaseCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/CharacterDemo/Source/CharacterDemo/Private/BaseCharacter.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/CharacterDemo/Source/CharacterDemo/Public/BaseCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/CharacterDemo/Source/CharacterDemo/Public/BaseCharacter.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/NPCCore/Resources/Icon128.png" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/NPCCore/Resources/Icon128.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/OptimizationComponent/Resources/Icon128.png" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/OptimizationComponent/Resources/Icon128.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/ParkourSystem/Resources/Icon128.png" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/ParkourSystem/Resources/Icon128.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProtocolDante.uproject" beforeDir="false" afterPath="$PROJECT_DIR$/ProtocolDante.uproject" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -20,11 +28,11 @@
     <commands />
     <urls />
   </component>
-  <component name="ProjectColorInfo">{
-  &quot;customColor&quot;: &quot;&quot;,
-  &quot;associatedIndex&quot;: 5
-}</component>
-  <component name="ProjectId" id="3FfcKd8zwSxChjlsh2QvthtCsfc" />
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 5
+}]]></component>
+  <component name="ProjectId" id="3FjIto5Ae0EK7KyAKFoI0N2b52r" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -81,14 +89,13 @@
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="3a52079c-794e-44cb-a8a4-74769d837b78" name="Changes" comment="" />
+      <changelist id="f68593cb-21fe-40e5-984b-80e10a1212bd" name="Changes" comment="" />
       <created>1782301945169</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1782301945169</updated>
       <workItem from="1782301949313" duration="51000" />
-      <workItem from="1782469504566" duration="1000" />
-      <workItem from="1782469552502" duration="193000" />
+      <workItem from="1782582286095" duration="175000" />
     </task>
     <servers />
   </component>

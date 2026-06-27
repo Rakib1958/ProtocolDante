@@ -1,7 +1,5 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "BaseCharacter.h"
+#include "LocomotionComponent.h"
 
 // Sets default values
 ABaseCharacter::ABaseCharacter()
@@ -20,7 +18,8 @@ ABaseCharacter::ABaseCharacter()
 	//GetCharacterMovement()->SetTickGroup(ETickingGroup::TG_PostPhysics);
 	bUseControllerRotationYaw = false;
 	LocomotionComponent = CreateDefaultSubobject<ULocomotionComponent>(TEXT("LocomotionComponent"));
-	
+	LocomotionComponent->OnUpdateMovement.AddDynamic(this, &ABaseCharacter::UpdateMovement);
+	LocomotionComponent->OnUpdateMovement.AddDynamic(this, &ABaseCharacter::UpdateMovement);
 }
 
 // Called when the game starts or when spawned
@@ -28,6 +27,54 @@ void ABaseCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	GetCharacterMovement()->AddTickPrerequisiteComponent(LocomotionComponent);
+	
+}
+
+void ABaseCharacter::UpdateMovement_Implementation()
+{
+	if (NoTraversalActive())
+	{
+		LocomotionComponent->UpdateGait();
+		LocomotionComponent->UpdateDynamicMovementSettings();
+	}
+}
+
+void ABaseCharacter::UpdateRotation_Implementation()
+{
+	if (NoTraversalActive())
+	{
+		if (IsPlayerControlled())
+		{
+			if (CanActivateSoftLock())
+			{
+				SoftLockRotation();
+			}
+		}
+		if (GetCurrentInputState().WantsToAim || GetCurrentInputState().WantsToStrafe)
+		{
+			GetCharacterMovement()->bOrientRotationToMovement = false;
+			GetCharacterMovement()->bUseControllerDesiredRotation = true;
+		}
+		else
+		{
+			GetCharacterMovement()->bOrientRotationToMovement = true;
+			GetCharacterMovement()->bUseControllerDesiredRotation = false;
+		}
+		if (GetCharacterMovement()->IsFalling() || JustFinishedParkour())
+		{
+			GetCharacterMovement()->RotationRate = FRotator(0.f, 200.f, 0.f);
+		}
+		else
+		{
+			GetCharacterMovement()->RotationRate = FRotator(0.f, -1.f, 0.f);
+		}
+	}
+	else
+	{
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+		GetCharacterMovement()->bUseControllerDesiredRotation = false;
+		GetCharacterMovement()->RotationRate = FRotator(0.f, 200.f, 0.f);
+	}
 }
 
 // Called every frame
